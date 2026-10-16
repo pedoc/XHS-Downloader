@@ -39,10 +39,10 @@ jobs:
 
     steps:
       - name: 签出存储库
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: 设置 uv
-        uses: astral-sh/setup-uv@v9.0.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
 
@@ -67,7 +67,7 @@ jobs:
       - name: 上传待签名构建产物
         if: matrix.sign && env.SIGNPATH_AVAILABLE == 'true'
         id: upload-artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ matrix.artifact }}_${{ env.DATE }}
           path: dist/XHS-Downloader
@@ -75,7 +75,7 @@ jobs:
 
       - name: SignPath 签名
         if: matrix.sign && env.SIGNPATH_AVAILABLE == 'true'
-        uses: signpath/github-action-submit-signing-request@v2
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: bddfd48a-44b7-4ab4-a51c-cd6e84db7534
@@ -87,7 +87,7 @@ jobs:
 
       - name: 上传签名版本
         if: matrix.sign && env.SIGNPATH_AVAILABLE == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ matrix.artifact }}_${{ env.DATE }}
           path: signed
@@ -96,7 +96,7 @@ jobs:
 
       - name: 上传未签名 Windows 版本
         if: matrix.sign && env.SIGNPATH_AVAILABLE != 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ matrix.artifact }}_${{ env.DATE }}
           path: dist/XHS-Downloader
@@ -104,7 +104,7 @@ jobs:
 
       - name: 上传 macOS 构建产物
         if: ${{ !matrix.sign }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ matrix.artifact }}_${{ env.DATE }}
           path: dist/XHS-Downloader

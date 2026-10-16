@@ -43,10 +43,10 @@ jobs:
 
     steps:
       - name: 签出存储库
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: 设置 uv
-        uses: astral-sh/setup-uv@v9.0.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
 
@@ -66,7 +66,7 @@ jobs:
       - name: 上传待签名构建产物
         if: matrix.sign && env.SIGNPATH_AVAILABLE == 'true'
         id: upload-artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ matrix.artifact }}
           path: dist/XHS-Downloader
@@ -74,7 +74,7 @@ jobs:
 
       - name: SignPath 签名
         if: matrix.sign && env.SIGNPATH_AVAILABLE == 'true'
-        uses: signpath/github-action-submit-signing-request@v2
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: bddfd48a-44b7-4ab4-a51c-cd6e84db7534
@@ -100,7 +100,7 @@ jobs:
           uv run --no-sync python -c "import shutil; shutil.make_archive('XHS-Downloader_V${{ github.event.release.tag_name }}_${{ matrix.artifact }}', 'zip', 'dist/XHS-Downloader')"
 
       - name: 上传构建产物
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ matrix.artifact }}
           path: ./XHS-Downloader_V${{ github.event.release.tag_name }}_${{ matrix.artifact }}.zip
@@ -114,16 +114,16 @@ jobs:
 
     steps:
       - name: 签出存储库
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: 下载构建产物
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: release-assets
           merge-multiple: true
 
       - name: 发布文件到 Release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           files: ./release-assets/*.zip
           name: XHS-Downloader V${{ github.event.release.tag_name }}
