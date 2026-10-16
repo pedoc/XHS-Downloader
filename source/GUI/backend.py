@@ -31,6 +31,7 @@ from ..module import (
     Settings,
     compare_versions,
 )
+from ..module.proxy import validate_proxy
 from ..translation import _
 from .ui_strings import (
     NAME_FORMAT_FIELDS,
@@ -682,6 +683,10 @@ class GuiBackend:
         )
         name_fields = [normalize_name_format_field(field) for field in fields]
         updated["name_format"] = " ".join(dict.fromkeys(name_fields))
+        try:
+            updated["proxy"] = validate_proxy(updated.get("proxy"))
+        except ValueError:
+            return {"ok": False, "error": _("代理地址格式无效，请检查协议、主机和端口")}
         self.settings_manager.update(updated)
         await self._close_xhs()
         self.settings = updated

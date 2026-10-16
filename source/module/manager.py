@@ -5,13 +5,13 @@ from re import compile, sub
 from shutil import move, rmtree
 from typing import TYPE_CHECKING, get_args
 
-from curl_cffi.requests import AsyncSession, BrowserTypeLiteral, get
-from curl_cffi.requests.exceptions import RequestException, Timeout
+from curl_cffi.requests import AsyncSession, BrowserTypeLiteral
 
 from ..expansion.paths import contained_path, validate_component
 
 from ..translation import _
 from .cookies import cookie_values, scoped_cookies
+from .proxy import validate_proxy
 from .static import HEADERS, IMPERSONATE, ROOT, WARNING
 from .tools import get_site_referer, logging
 
@@ -282,36 +282,11 @@ class Manager:
             return note_format
         return ""
 
-    def __check_proxy(
-        self,
-        proxy: str | None,
-        url="https://www.xiaohongshu.com/explore",
-    ) -> str | None:
-        if proxy:
-            try:
-                response = get(
-                    url,
-                    timeout=self.timeout,
-                    impersonate=self.impersonate,
-                    proxy=proxy,
-                )
-                response.raise_for_status()
-                self.proxy_tip = (_("代理 {0} 测试成功").format(proxy),)
-                return proxy
-            except Timeout:
-                self.proxy_tip = (
-                    _("代理 {0} 测试超时").format(proxy),
-                    WARNING,
-                )
-            except RequestException as e:
-                self.proxy_tip = (
-                    _("代理 {0} 测试失败：{1}").format(
-                        proxy,
-                        e,
-                    ),
-                    WARNING,
-                )
-        return None
+    def __check_proxy(self, proxy: str | None) -> str | None:
+        configured = validate_proxy(proxy)
+        if configured:
+            self.proxy_tip = (_("已配置网络代理，将在实际请求时使用"),)
+        return configured
 
     def get_headers(
         self,
