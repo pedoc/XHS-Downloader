@@ -109,7 +109,7 @@ def test_xhs_constructor_forwards_script_binding_with_only_fake_dependencies(
     host: str | None,
 ) -> None:
     app = server_modules.app
-    manager = SimpleNamespace(note_format="markdown")
+    manager = SimpleNamespace(note_format="markdown", folder=app.VOLUME / "Download")
     monkeypatch.setattr(app, "Manager", Mock(return_value=manager))
     for name in (
         "switch_language",
@@ -135,6 +135,7 @@ def test_xhs_constructor_forwards_script_binding_with_only_fake_dependencies(
     app.XHS.__init__(core, **options, script_port=8123)
 
     initialize.assert_called_once_with(host or "127.0.0.1", 8123)
+    app.NoteGenerator.assert_called_once_with(manager.note_format, manager.folder)
 
 
 @pytest.mark.integration

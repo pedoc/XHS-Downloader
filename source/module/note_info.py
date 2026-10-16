@@ -1,14 +1,15 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+from pathlib import Path
+
 from aiofiles import open
 
-if TYPE_CHECKING:
-    from pathlib import Path
+from ..expansion.paths import contained_path, validate_component
 
 
 class NoteGenerator:
-    def __init__(self, note_format: str) -> None:
+    def __init__(self, note_format: str, download_root: Path) -> None:
         self.note_format = note_format
+        self.download_root = download_root.resolve()
 
     @classmethod
     def generate_txt(cls, data: dict) -> str:
@@ -89,16 +90,22 @@ class NoteGenerator:
         ]
         return "\n".join(lines) + "\n"
 
-    @staticmethod
-    async def write_note_info(content: str, file_path: "Path") -> None:
-        """将内容追加写入到指定文件"""
+    async def write_note_info(self, content: str, file_path: Path) -> None:
+        """仅向可信下载目录内的最终文件追加写入。"""
+        validate_component(file_path.name)
+        file_path = contained_path(self.download_root, file_path)
         async with open(file_path, "a", encoding="utf-8") as f:
             await f.write(content)
 
-    async def save_note_info(self, data: dict, path: "Path", name: str) -> None:
+    async def save_note_info(self, data: dict, path: Path, name: str) -> None:
         if not self.note_format:
             return
+        validate_component(name)
         formats = ["md", "txt"] if self.note_format == "all" else [self.note_format]
-        for fmt in formats:
+        files = [
+            contained_path(self.download_root, path / f"{name}.{validate_component(fmt)}")
+            for fmt in formats
+        ]
+        for fmt, file_path in zip(formats, files):
             content = self.generate_md(data) if fmt == "md" else self.generate_txt(data)
-            await self.write_note_info(content, path / f"{name}.{fmt}")
+            await self.write_note_info(content, file_path)

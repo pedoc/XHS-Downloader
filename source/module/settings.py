@@ -3,7 +3,8 @@ from pathlib import Path
 from platform import system
 from shutil import move
 
-from .static import IMPERSONATE, VOLUME
+from ..expansion.paths import contained_path
+from .static import IMPERSONATE, ROOT, VOLUME
 
 __all__ = ["Settings"]
 
@@ -49,8 +50,8 @@ class Settings:
         """
         # 设置文件路径
         self.name = "settings.json"
-        self.root = root
-        self.path = root.joinpath(self.name)
+        self.root = root.resolve()
+        self.path = self.root.joinpath(self.name)
 
     def run(self):
         """运行设置管理
@@ -60,7 +61,8 @@ class Settings:
         """
         self.migration_file()
         # 如果文件存在则读取,否则创建新文件
-        return self.read() if self.path.is_file() else self.create()
+        path = contained_path(self.root, self.path)
+        return self.read() if path.is_file() else self.create()
 
     def read(self) -> dict:
         """读取设置文件
@@ -69,7 +71,7 @@ class Settings:
             dict: 读取的设置参数字典
         """
         # 读取设置文件
-        with self.path.open("r", encoding=self.encode) as f:
+        with contained_path(self.root, self.path).open("r", encoding=self.encode) as f:
             return self.compatible(load(f))
 
     def create(self) -> dict:
@@ -79,7 +81,7 @@ class Settings:
             dict: 默认设置参数字典
         """
         # 创建新的设置文件
-        with self.path.open("w", encoding=self.encode) as f:
+        with contained_path(self.root, self.path).open("w", encoding=self.encode) as f:
             dump(self.default, f, indent=4, ensure_ascii=False)
             return self.default
 
@@ -90,7 +92,7 @@ class Settings:
             data: 要更新的设置参数字典
         """
         # 更新设置文件
-        with self.path.open("w", encoding=self.encode) as f:
+        with contained_path(self.root, self.path).open("w", encoding=self.encode) as f:
             dump(data, f, indent=4, ensure_ascii=False)
 
     def compatible(
@@ -120,7 +122,14 @@ class Settings:
 
         如果旧的设置文件存在且新路径下不存在,则移动旧文件到新路径
         """
-        if (
-            old := self.root.parent.joinpath(self.name)
-        ).exists() and not self.path.exists():
-            move(old, self.path)
+        if self.root.parts != ROOT.joinpath("Volume").resolve().parts:
+            return
+        destination = contained_path(self.root, self.path)
+        if destination.exists():
+            return
+        old = ROOT.joinpath("settings.json")
+        if old.is_symlink() or old.is_junction():
+            raise ValueError("Unsafe legacy settings link; copy settings manually")
+        old = contained_path(ROOT, old)
+        if old.exists():
+            move(old, destination)

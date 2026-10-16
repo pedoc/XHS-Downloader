@@ -1,3 +1,4 @@
+from contextlib import suppress
 from os import utime
 from pathlib import Path
 from re import compile, sub
@@ -7,11 +8,11 @@ from typing import TYPE_CHECKING, get_args
 from curl_cffi.requests import AsyncSession, BrowserTypeLiteral, get
 from curl_cffi.requests.exceptions import RequestException, Timeout
 
-from source.expansion import remove_empty_directories
+from ..expansion.paths import contained_path, validate_component
 
 from ..translation import _
 from .cookies import cookie_values, scoped_cookies
-from .static import HEADERS, IMPERSONATE, WARNING
+from .static import HEADERS, IMPERSONATE, ROOT, WARNING
 from .tools import get_site_referer, logging
 
 if TYPE_CHECKING:
@@ -75,9 +76,9 @@ class Manager:
         print_object,
     ):
         self.print = print_object
-        self.root = root
+        self.root = root.resolve()
         self.cleaner = cleaner
-        self.temp = root.joinpath("Temp")
+        self.temp = contained_path(self.root, self.root.joinpath("Temp"))
         self.path = self.__check_path(path)
         self.folder = self.__check_folder(folder)
         self.compatible()
@@ -135,13 +136,13 @@ class Manager:
     def __check_path(self, path: str) -> Path:
         if not path:
             return self.root
-        if (r := Path(path)).is_dir():
+        if (r := Path(path).resolve()).is_dir():
             return r
         return r if (r := self.__check_root_again(r)) else self.root
 
     def __check_folder(self, folder: str) -> Path:
-        folder = self.cleaner.filter_name(folder, default="Download")
-        return self.path.joinpath(folder)
+        folder = validate_component(self.cleaner.filter_name(folder, default="Download"))
+        return contained_path(self.path, self.path.joinpath(folder))
 
     @staticmethod
     def __check_root_again(root: Path) -> None | Path:
@@ -167,33 +168,73 @@ class Manager:
     def is_exists(path: Path) -> bool:
         return path.exists()
 
-    @staticmethod
-    def delete(path: Path):
+    def download_path(self, path: Path) -> Path:
+        root = contained_path(self.path, self.folder)
+        return contained_path(root, path)
+
+    def temp_path(self, path: Path) -> Path:
+        root = contained_path(self.root, self.temp)
+        return contained_path(root, path)
+
+    def delete(self, path: Path) -> None:
+        path = self.temp_path(path)
         if path.exists():
             path.unlink()
 
     @staticmethod
     def archive(root: Path, name: str, folder_mode: bool) -> Path:
+        validate_component(name)
         return root.joinpath(name) if folder_mode else root
 
-    @classmethod
     def move(
-        cls,
+        self,
         temp: Path,
         path: Path,
-        mtime: int = None,
+        mtime: int | None = None,
         rewrite: bool = False,
-    ):
-        move(temp.resolve(), path.resolve())
+    ) -> None:
+        temp = self.temp_path(temp)
+        path = self.download_path(path)
+        if path.is_dir():
+            raise ValueError(f"Media destination is a directory: {path}")
+        move(temp, path)
         if rewrite and mtime:
-            cls.update_mtime(path.resolve(), mtime)
+            self.update_mtime(path, mtime)
+
+    def update_mtime(self, file: Path, mtime: int) -> None:
+        utime(self.download_path(file), (mtime, mtime))
+
+    def __clean(self) -> None:
+        temp = contained_path(self.root, self.temp)
+        self.__check_tree(temp)
+        rmtree(temp)
 
     @staticmethod
-    def update_mtime(file: Path, mtime: int):
-        utime(file, (mtime, mtime))
+    def __check_tree(root: Path) -> None:
+        pending = [root]
+        visited = set()
+        while pending:
+            folder = pending.pop()
+            if folder.parts in visited:
+                continue
+            visited.add(folder.parts)
+            for child in folder.iterdir():
+                child = contained_path(root, child)
+                if child.is_dir():
+                    pending.append(child)
 
-    def __clean(self):
-        rmtree(self.temp.resolve())
+    @classmethod
+    def __remove_empty_directories(cls, root: Path) -> None:
+        if not root.exists():
+            return
+        cls.__check_tree(root)
+        for parent, directories, files in root.walk(top_down=False):
+            if parent == root or directories or files:
+                continue
+            if any(part.startswith((".", "_")) for part in parent.relative_to(root).parts):
+                continue
+            with suppress(OSError):
+                contained_path(root, parent).rmdir()
 
     def filter_name(self, name: str) -> str:
         name = self.NAME.sub("_", name)
@@ -217,8 +258,10 @@ class Manager:
         await self.public_client.close()
         await self.download_client.close()
         # self.__clean()
-        remove_empty_directories(self.root)
-        remove_empty_directories(self.folder)
+        folder = contained_path(self.path, self.folder)
+        contained_path(self.root, self.temp)
+        self.__remove_empty_directories(self.root)
+        self.__remove_empty_directories(folder)
 
     def __check_name_format(self, format_: str) -> str:
         keys = format_.split()
@@ -314,21 +357,31 @@ class Manager:
         cookie_string = sub(r";\s*;", ";", cookie_string)  # 删除中间多余分号后的空格
         return cookie_string.strip("; ")
 
-    def create_folder(
-        self,
-    ):
-        self.folder.mkdir(exist_ok=True)
-        self.temp.mkdir(exist_ok=True)
+    def create_folder(self) -> None:
+        contained_path(self.path, self.folder).mkdir(exist_ok=True)
+        contained_path(self.root, self.temp).mkdir(exist_ok=True)
 
-    def compatible(
-        self,
-    ):
+    def compatible(self) -> None:
+        # 仅默认应用目录中的固定旧位置是兼容迁移源，不能信任任意 root.parent。
         if (
-            self.path == self.root
-            and (old := self.path.parent.joinpath(self.folder.name)).exists()
-            and not self.folder.exists()
+            self.root.parts != ROOT.joinpath("Volume").resolve().parts
+            or self.path.parts != self.root.parts
+            or self.folder.parts != self.root.joinpath("Download").parts
         ):
-            move(old, self.folder)
+            return
+        destination = contained_path(self.path, self.folder)
+        if destination.exists():
+            return
+        old = ROOT.joinpath("Download")
+        if old.is_symlink() or old.is_junction():
+            raise ValueError("Unsafe legacy Download link; copy legacy files manually")
+        old = contained_path(ROOT, old)
+        if old.exists():
+            try:
+                self.__check_tree(old)
+            except ValueError as error:
+                raise ValueError("Unsafe legacy Download tree; copy files manually") from error
+            move(old, destination)
 
     @staticmethod
     def cookie_str_to_dict(cookie_str: str) -> dict:

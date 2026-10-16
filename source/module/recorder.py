@@ -1,9 +1,13 @@
 from asyncio import CancelledError
 from contextlib import suppress
+from pathlib import Path
 from shutil import move
 from typing import TYPE_CHECKING
 
 from aiosqlite import connect
+
+from ..expansion.paths import contained_path
+from .static import ROOT
 
 if TYPE_CHECKING:
     from ..module import Manager
@@ -13,6 +17,7 @@ __all__ = ["IDRecorder", "DataRecorder", "MapRecorder"]
 
 class IDRecorder:
     def __init__(self, manager: "Manager"):
+        self.manager = manager
         self.name = "ExploreID.db"
         self.file = manager.root.joinpath(self.name)
         self.changed = False
@@ -20,8 +25,17 @@ class IDRecorder:
         self.database = None
         self.cursor = None
 
+    def _checked_file(self) -> Path:
+        root = self.manager.root
+        if self.changed:
+            root = contained_path(self.manager.path, self.manager.folder)
+        file = contained_path(root, self.file)
+        for suffix in ("-journal", "-wal", "-shm"):
+            contained_path(root, file.with_name(f"{file.name}{suffix}"))
+        return file
+
     async def _connect_database(self):
-        self.database = await connect(self.file)
+        self.database = await connect(self._checked_file())
         self.cursor = await self.database.cursor()
         await self.database.execute(
             "CREATE TABLE IF NOT EXISTS explore_id (ID TEXT PRIMARY KEY);"
@@ -41,11 +55,13 @@ class IDRecorder:
         **kwargs,
     ) -> None:
         if self.switch:
+            self._checked_file()
             await self.database.execute("REPLACE INTO explore_id VALUES (?);", (id_,))
             await self.database.commit()
 
     async def __delete(self, id_: str) -> None:
         if id_:
+            self._checked_file()
             await self.database.execute("DELETE FROM explore_id WHERE ID=?", (id_,))
             await self.database.commit()
 
@@ -95,6 +111,7 @@ class IDRecorder:
     async def clear(self) -> int:
         if not self.switch:
             return 0
+        self._checked_file()
         count = await self.count()
         await self.database.execute("DELETE FROM explore_id")
         await self.database.commit()
@@ -110,15 +127,22 @@ class IDRecorder:
             await self.cursor.close()
         await self.database.close()
 
-    def compatible(
-        self,
-    ):
+    def compatible(self) -> None:
         if (
-            not self.changed
-            and (old := self.file.parent.parent.joinpath(self.name)).exists()
-            and not self.file.exists()
+            self.changed
+            or self.name not in {"ExploreID.db", "MappingData.db"}
+            or self.manager.root.parts != ROOT.joinpath("Volume").resolve().parts
         ):
-            move(old, self.file)
+            return
+        destination = self._checked_file()
+        if destination.exists():
+            return
+        old = ROOT.joinpath(self.name)
+        if old.is_symlink() or old.is_junction():
+            raise ValueError("Unsafe legacy recorder link; copy records manually")
+        old = contained_path(ROOT, old)
+        if old.exists():
+            move(old, destination)
 
 
 class DataRecorder(IDRecorder):
@@ -151,7 +175,7 @@ class DataRecorder(IDRecorder):
         self.switch = manager.record_data
 
     async def _connect_database(self):
-        self.database = await connect(self.file)
+        self.database = await connect(self._checked_file())
         self.cursor = await self.database.cursor()
         await self.database.execute(f"""CREATE TABLE IF NOT EXISTS explore_data (
         {",".join(" ".join(i) for i in self.DATA_TABLE)}
@@ -163,6 +187,7 @@ class DataRecorder(IDRecorder):
 
     async def add(self, **kwargs) -> None:
         if self.switch:
+            self._checked_file()
             await self.database.execute(
                 f"""REPLACE INTO explore_data (
         {", ".join(i[0] for i in self.DATA_TABLE)}
@@ -194,7 +219,7 @@ class MapRecorder(IDRecorder):
         self.switch = manager.author_archive
 
     async def _connect_database(self):
-        self.database = await connect(self.file)
+        self.database = await connect(self._checked_file())
         self.cursor = await self.database.cursor()
         await self.database.execute(
             "CREATE TABLE IF NOT EXISTS mapping_data ("
@@ -213,6 +238,7 @@ class MapRecorder(IDRecorder):
 
     async def add(self, id_: str, name: str, *args, **kwargs) -> None:
         if self.switch:
+            self._checked_file()
             await self.database.execute(
                 "REPLACE INTO mapping_data VALUES (?, ?);",
                 (

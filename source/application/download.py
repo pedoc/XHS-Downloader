@@ -6,6 +6,7 @@ from aiofiles import open
 from curl_cffi.requests.exceptions import RequestException
 
 from ..expansion import CacheError
+from ..expansion.paths import contained_path, validate_component
 
 # from ..module import WARNING
 from ..module import (
@@ -83,17 +84,12 @@ class Download:
         progress: Callable[[dict], None] | None = None,
         task_id: str | None = None,
     ) -> list[Any]:
+        validate_component(filename)
+        contained_path(self.manager.path, self.folder)
+        path = contained_path(self.manager.path, path)
         if type_ == _("视频"):
-            tasks = self.__ready_download_video(
-                urls,
-                path,
-                filename,
-            )
-            tasks += self.__ready_download_cover(
-                cover,
-                path,
-                filename,
-            )
+            tasks = self.__ready_download_video(urls, path, filename)
+            tasks += self.__ready_download_cover(cover, path, filename)
         elif type_ in {
             _("图文"),
             _("图集"),
@@ -122,13 +118,16 @@ class Download:
         tasks = await gather(*tasks)
         return tasks
 
-    def generate_path(self, nickname: str, filename: str):
+    def generate_path(self, nickname: str, filename: str) -> Path:
+        validate_component(nickname)
+        validate_component(filename)
+        folder = contained_path(self.manager.path, self.folder)
         if self.author_archive:
-            folder = self.folder.joinpath(nickname)
+            folder = self.manager.download_path(folder.joinpath(nickname))
             folder.mkdir(exist_ok=True)
-        else:
-            folder = self.folder
         path = self.manager.archive(folder, filename, self.folder_mode)
+        if self.folder_mode:
+            path = self.manager.download_path(path)
         path.mkdir(exist_ok=True)
         return path
 
@@ -217,7 +216,8 @@ class Download:
         path: Path,
         name: str,
     ) -> bool:
-        if path.joinpath(name).exists():
+        file = self.manager.download_path(path.joinpath(validate_component(name)))
+        if file.exists():
             logging(self.print, _("{0} 文件已存在，跳过下载").format(name))
             return True
         return False
@@ -235,7 +235,9 @@ class Download:
     ):
         async with self.SEMAPHORE:
             headers = self.headers.copy()
-            temp = self.temp.joinpath(f"{name}.{format_}")
+            temp = self.manager.temp_path(
+                self.temp.joinpath(validate_component(f"{name}.{format_}"))
+            )
             completed = self.__update_headers_range(
                 headers,
                 temp,
@@ -275,6 +277,7 @@ class Download:
                     total = completed + content_length if content_length else None
                     report("downloading", total)
                     buffer = bytearray()
+                    temp = self.manager.temp_path(temp)
                     async with open(temp, "ab") as f:
                         async for chunk in response.aiter_content(self.chunk):
                             buffer.extend(chunk)
@@ -356,8 +359,8 @@ class Download:
         length = response.headers.get("Content-Length", 0)
         return int(length), suffix
 
-    @staticmethod
-    def __get_resume_byte_position(file: Path) -> int:
+    def __get_resume_byte_position(self, file: Path) -> int:
+        file = self.manager.temp_path(file)
         return file.stat().st_size if file.is_file() else 0
 
     def __update_headers_range(
@@ -375,12 +378,16 @@ class Download:
         name: str,
         default_suffix: str,
     ) -> Path:
+        temp = self.manager.temp_path(temp)
+        validate_component(name)
+        suffix = validate_component(default_suffix)
         try:
             async with open(temp, "rb") as f:
                 file_start = await f.read(FILE_SIGNATURES_LENGTH)
-            for offset, signature, suffix in FILE_SIGNATURES:
+            for offset, signature, detected in FILE_SIGNATURES:
                 if file_start[offset : offset + len(signature)] == signature:
-                    return path.joinpath(f"{name}.{suffix}")
+                    suffix = detected
+                    break
         except Exception as error:
             logging(
                 self.print,
@@ -389,4 +396,4 @@ class Download:
                 ),
                 ERROR,
             )
-        return path.joinpath(f"{name}.{default_suffix}")
+        return self.manager.download_path(path.joinpath(validate_component(f"{name}.{suffix}")))

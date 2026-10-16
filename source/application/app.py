@@ -31,6 +31,7 @@ from ..expansion import (
     Namespace,
     beautify_string,
 )
+from ..expansion.paths import ID_TOKEN, validate_component
 from ..module import (
     __VERSION__,
     ERROR,
@@ -210,7 +211,7 @@ class XHS:
         self.downloader = Download(self.manager)
         self.id_recorder = IDRecorder(self.manager)
         self.data_recorder = DataRecorder(self.manager)
-        self.note_generator = NoteGenerator(self.manager.note_format)
+        self.note_generator = NoteGenerator(self.manager.note_format, self.manager.folder)
         self.clipboard_cache: str = ""
         self.queue = Queue()
         self.event = Event()
@@ -251,15 +252,18 @@ class XHS:
         progress_callback: Callable[[dict], None] | None = None,
         task_id: str | None = None,
     ):
-        nickname = (
-            f"{container['作者ID']}_{self.CLEANER.filter_name(container['作者昵称'])}"
+        author_id = self.__validate_id(container["作者ID"])
+        alias = validate_component(
+            self.CLEANER.filter_name(container["作者昵称"]) or author_id
         )
+        nickname = validate_component(f"{author_id}_{alias}")
         filename = self.__naming_rules(container)
         path = self.downloader.generate_path(nickname, filename)
-        if (u := container["下载地址"]) and download:
-            i = container["作品ID"]
+        urls = container["下载地址"]
+        result = None
+        if urls and download:
             result = await self.downloader.run(
-                u,
+                urls,
                 container["动图地址"],
                 index,
                 path,
@@ -270,20 +274,19 @@ class XHS:
                 progress=progress_callback,
                 task_id=task_id,
             )
+        await self.note_generator.save_note_info(container, path, filename)
+        await self.save_data(container)
+        if not urls:
+            self.logging(_("提取作品文件下载地址失败"), ERROR)
+            count.fail += 1
+        elif download:
             if not result:
                 count.skip += 1
             elif all(result):
+                await self.__add_record(container["作品ID"])
                 count.success += 1
-                await self.__add_record(
-                    i,
-                )
             else:
                 count.fail += 1
-        elif not u:
-            self.logging(_("提取作品文件下载地址失败"), ERROR)
-            count.fail += 1
-        await self.note_generator.save_note_info(container, path, filename)
-        await self.save_data(container)
 
     @data_cache
     async def save_data(
@@ -498,29 +501,32 @@ class XHS:
         progress_callback: Callable[[dict], None] | None = None,
         task_id: str | None = None,
     ):
-        if data["作品类型"] == _("视频"):
-            self.__extract_video(data, namespace)
-        elif data["作品类型"] in {
-            _("图文"),
-            _("图集"),
-        }:
-            self.__extract_image(data, namespace)
-        else:
-            self.logging(_("未知的作品类型：{0}").format(id_), WARNING)
-            data["下载地址"] = []
-            data["动图地址"] = []
-        await self.update_author_nickname(
-            data,
-        )
-        await self.__download_files(
-            data,
-            download=download,
-            index=index,
-            count=count,
-            progress_callback=progress_callback,
-            task_id=task_id,
-        )
-        # await sleep_time()
+        try:
+            self.__validate_id(data["作品ID"])
+            self.__validate_id(data["作者ID"])
+            if data["作品类型"] == _("视频"):
+                self.__extract_video(data, namespace)
+            elif data["作品类型"] in {_("图文"), _("图集")}:
+                self.__extract_image(data, namespace)
+            else:
+                self.logging(_("未知的作品类型：{0}").format(id_), WARNING)
+                data["下载地址"] = []
+                data["动图地址"] = []
+            await self.update_author_nickname(data)
+            await self.__download_files(
+                data,
+                download=download,
+                index=index,
+                count=count,
+                progress_callback=progress_callback,
+                task_id=task_id,
+            )
+        except (ValueError, OSError) as error:
+            count.fail += 1
+            self.logging(_("作品文件路径处理失败：{0}").format(error), ERROR)
+            if progress_callback:
+                progress_callback({"task_id": task_id, "state": "failed"})
+            return {"message": str(error)}
         return data
 
     async def __deal_extract(
@@ -634,16 +640,14 @@ class XHS:
         self,
         container: dict,
     ):
-        if a := self.CLEANER.filter_name(
-            self.mapping_data.get(i := container["作者ID"], "")
-        ):
-            container["作者昵称"] = a
-        else:
-            container["作者昵称"] = self.manager.filter_name(container["作者昵称"]) or i
-        await self.mapping.update_cache(
-            i,
-            container["作者昵称"],
-        )
+        i = self.__validate_id(container["作者ID"])
+        alias = self.CLEANER.filter_name(self.mapping_data.get(i, ""))
+        if not alias:
+            alias = self.CLEANER.filter_name(
+                self.manager.filter_name(container["作者昵称"])
+            )
+        container["作者昵称"] = validate_component(alias or self.__validate_id(i))
+        await self.mapping.update_cache(i, container["作者昵称"])
 
     @staticmethod
     def extract_link_id(url: str) -> str:
@@ -656,7 +660,17 @@ class XHS:
         data = self.convert.run(html)
         return Namespace(data)
 
+    @staticmethod
+    def __validate_id(value: str) -> str:
+        validate_component(value)
+        if not ID_TOKEN.fullmatch(value):
+            raise ValueError(f"Invalid metadata ID: {value!r}")
+        return value
+
     def __naming_rules(self, data: dict) -> str:
+        author_id = self.__validate_id(data["作者ID"])
+        note_id = self.__validate_id(data["作品ID"])
+        fallback = validate_component(f"{author_id}_{note_id}")
         keys = self.manager.name_format.split()
         values = []
         for key in keys:
@@ -667,17 +681,14 @@ class XHS:
                     values.append(self.__get_name_title(data))
                 case _:
                     values.append(data[key])
-        return beautify_string(
-            self.CLEANER.filter_name(
-                self.manager.SEPARATE.join(values),
-                default=self.manager.SEPARATE.join(
-                    (
-                        data["作者ID"],
-                        data["作品ID"],
-                    )
+        return validate_component(
+            beautify_string(
+                self.CLEANER.filter_name(
+                    self.manager.SEPARATE.join(values),
+                    default=fallback,
                 ),
-            ),
-            length=128,
+                length=128,
+            )
         )
 
     @staticmethod
@@ -690,7 +701,7 @@ class XHS:
                 self.manager.filter_name(data["作品标题"]),
                 64,
             )
-            or data["作品ID"]
+            or self.__validate_id(data["作品ID"])
         )
 
     async def monitor(
