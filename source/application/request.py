@@ -33,14 +33,14 @@ class Html:
     async def request_url(
         self,
         url: str,
-        content=True,
+        content: bool = True,
         cookie: str | None = None,
         proxy: str | None = None,
         purpose: Literal["html", "short", "update"] = "html",
-        **kwargs,
+        timeout: float | None = None,
     ) -> str:
         request = self.__request_url if purpose == "update" else self.__retry_request_url
-        return await request(url, content, cookie, proxy, purpose, **kwargs)
+        return await request(url, content, cookie, proxy, purpose, timeout=timeout)
 
     @retry
     async def __retry_request_url(self, *args: Any, **kwargs: Any) -> str:
@@ -53,7 +53,7 @@ class Html:
         cookie: str | None,
         proxy: str | None,
         purpose: Literal["html", "short", "update"],
-        **kwargs,
+        timeout: float | None = None,
     ) -> str:
         if purpose not in {"html", "short", "update"}:
             raise ValueError("Unknown request purpose")
@@ -67,7 +67,7 @@ class Html:
                     headers,
                     cookie,
                     proxy=proxy,
-                    **kwargs,
+                    timeout=timeout,
                 )
             else:
                 response = await self.__request_url_get(
@@ -75,7 +75,7 @@ class Html:
                     headers,
                     client=self.client if purpose == "html" else self.public_client,
                     proxy=proxy,
-                    **kwargs,
+                    timeout=timeout,
                 )
             if purpose != "update":
                 await sleep_time()
@@ -94,23 +94,22 @@ class Html:
         return bytes(url, "utf-8").decode("unicode_escape")
 
     def __request_url_with_cookie(
-            self,
-            url: str,
-            headers: dict,
-            cookie: str,
-            proxy: str | None = None,
-            **kwargs,
+        self,
+        url: str,
+        headers: dict,
+        cookie: str,
+        proxy: str | None = None,
+        timeout: float | None = None,
     ):
         return get(
             url,
             headers=headers,
             cookies=scoped_cookies(cookie, host=urlsplit(url).hostname or ""),
-            timeout=self.timeout,
-            verify=False,
+            timeout=self.timeout if timeout is None else timeout,
+            verify=True,
             allow_redirects=True,
             proxy=self.proxy if proxy is None else proxy,
             impersonate=self.impersonate,
-            **kwargs,
         )
 
     async def __request_url_get(
@@ -119,12 +118,13 @@ class Html:
         headers: dict,
         proxy: str | None = None,
         client: "AsyncSession | None" = None,
-        **kwargs,
+        timeout: float | None = None,
     ):
         selected_client = self.client if client is None else client
+        options = {} if timeout is None else {"timeout": timeout}
         return await selected_client.get(
             url,
             headers=headers,
             proxy=self.proxy if proxy is None else proxy,
-            **kwargs,
+            **options,
         )

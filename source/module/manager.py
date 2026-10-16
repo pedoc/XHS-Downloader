@@ -99,7 +99,7 @@ class Manager:
             headers=self.blank_headers,
             cookies=scoped_cookies(cookie),
             timeout=self.timeout,
-            verify=False,
+            verify=True,
             allow_redirects=True,
             proxy=self.proxy,
             impersonate=self.impersonate,
@@ -107,6 +107,7 @@ class Manager:
         self.public_client = AsyncSession(
             headers=self.blank_headers,
             timeout=self.timeout,
+            verify=True,
             allow_redirects=True,
             proxy=self.proxy,
             impersonate=self.impersonate,
@@ -114,7 +115,7 @@ class Manager:
         )
         self.download_client = AsyncSession(
             timeout=self.timeout,
-            verify=False,
+            verify=True,
             allow_redirects=True,
             proxy=self.proxy if self.proxy_download else None,
             impersonate=self.impersonate,
