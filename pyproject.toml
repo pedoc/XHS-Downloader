@@ -31,6 +31,10 @@ Repository = "https://github.com/JoeanAmier/XHS-Downloader"
 [tool.uv.pip]
 index-url = "https://mirrors.ustc.edu.cn/pypi/simple"
 
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true
+
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
 exclude = [
@@ -109,3 +113,9 @@ docstring-code-format = false
 # This only has an effect when the `docstring-code-format` setting is
 # enabled.
 docstring-code-line-length = "dynamic"
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+]
