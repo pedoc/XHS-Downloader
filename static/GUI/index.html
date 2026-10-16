@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light">
+    <!-- pywebview generates its local API functions dynamically; no remote scripts are allowed. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
     <title>XHS-Downloader</title>
     <!-- Keep fonts local for privacy and offline startup. -->
     <link rel="stylesheet" href="./styles.css">
@@ -692,6 +694,7 @@
     </div>
 </dialog>
 
+<script src="./navigation.js"></script>
 <script src="./app.js"></script>
 </body>
 </html>

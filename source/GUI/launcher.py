@@ -7,6 +7,7 @@ import webview
 
 from ..module import PROJECT, ROOT
 from .backend import GuiApi, GuiBackend
+from .security import NoObjectApi, bind_trusted_api
 
 # GUI 静态资源与 Python 桥接代码分离，统一从项目 static 目录加载。
 INDEX_PATH = ROOT.joinpath("static", "GUI", "index.html")
@@ -51,9 +52,10 @@ def launch() -> None:
         min_size=(1280, 720),
         resizable=True,
         text_select=True,
-        js_api=api,
+        js_api=NoObjectApi(),
     )
     api._bind_window(window)
+    bind_trusted_api(window, api, index_url)
     backend.start(wait=False)
     try:
         webview.start(
