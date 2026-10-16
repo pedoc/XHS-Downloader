@@ -209,7 +209,11 @@ def test_mcp_passes_binding_to_fake_fastmcp_runner(
     )
 
     mcp.run_async.assert_awaited_once_with(
-        transport="streamable-http", host=host, port=8123, log_level="INFO"
+        transport="streamable-http",
+        show_banner=False,
+        host=host,
+        port=8123,
+        log_level="INFO",
     )
 
 

@@ -1010,6 +1010,7 @@ class XHS:
 
         await mcp.run_async(
             transport=transport,
+            show_banner=False,
             host=host,
             port=port,
             log_level=log_level,
