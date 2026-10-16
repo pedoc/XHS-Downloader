@@ -127,6 +127,7 @@
 </ul>
 </li>
 </ol>
+<p><b>Container data permissions:</b> The image runs as an ordinary user (UID/GID <code>10001:10001</code>) and writes data to <code>/app/Volume</code>; new named volumes inherit that directory's permissions. Existing named volumes created by the old root-based image, or host bind mounts, may not be writable. First stop the container and back up your data, then manually adjust the volume or bind directory's ownership/permissions so <code>10001:10001</code> can write. The image does not automatically change ownership or permissions of mounted data.</p>
 <p>When running the project via Docker, the <b>command line call mode</b> is not supported. The <b>clipboard reading</b> and <b>clipboard monitoring</b> functions are unavailable, but pasting content notes fine. Please provide feedback if other features are not functioning properly!</p>
 <h1>🛠 Command Line Mode</h1>
 <details>

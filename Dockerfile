@@ -24,6 +24,8 @@ FROM python:3.12-slim-bookworm
 # 设置工作目录
 WORKDIR /app
 
+ENV PYTHONDONTWRITEBYTECODE=1
+
 # 添加元数据标签
 LABEL name="XHS-Downloader" authors="JoeanAmier" repository="https://github.com/JoeanAmier/XHS-Downloader"
 
@@ -40,8 +42,17 @@ COPY main.py /app/main.py
 # 暴露端口
 EXPOSE 5556
 
+# 创建普通运行用户，仅为数据目录授予写权限
+RUN groupadd --gid 10001 app \
+    && useradd --uid 10001 --gid 10001 --no-create-home \
+        --home-dir /app/Volume --shell /usr/sbin/nologin app \
+    && mkdir -p /app/Volume \
+    && chown 10001:10001 /app/Volume
+
 # 创建挂载点
 VOLUME /app/Volume
+
+USER 10001:10001
 
 # 设置容器启动命令
 CMD ["python", "main.py", "TUI"]
