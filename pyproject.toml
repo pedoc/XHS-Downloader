@@ -35,6 +35,9 @@ index-url = "https://mirrors.ustc.edu.cn/pypi/simple"
 url = "https://pypi.org/simple"
 default = true
 
+[tool.uv.dependency-groups]
+build = { requires-python = ">=3.12,<3.16" }
+
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
 exclude = [
@@ -115,6 +118,9 @@ docstring-code-format = false
 docstring-code-line-length = "dynamic"
 
 [dependency-groups]
+build = [
+    "cx-freeze==8.7.2",
+]
 dev = [
     "pytest==9.1.1",
     "pytest-cov==7.1.0",

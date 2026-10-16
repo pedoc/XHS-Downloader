@@ -49,20 +49,19 @@ jobs:
       - name: 安装依赖项
         run: |
           uv python install 3.12
-          uv sync --frozen --no-dev --no-install-project --python 3.12
-          uv pip install cx_Freeze
+          uv sync --frozen --no-dev --group build --no-install-project --python 3.12
 
       - name: 获取构建日期
         run: >-
-          uv run python -c
+          uv run --no-sync python -c
           "from datetime import datetime; from os import environ; open(environ['GITHUB_ENV'], 'a', encoding='utf-8').write(f'DATE={datetime.now():%Y%m%d}\n')"
 
       - name: 构建可执行文件
-        run: uv run python setup.py build_exe --build-exe dist/XHS-Downloader
+        run: uv run --no-sync python setup.py build_exe --build-exe dist/XHS-Downloader
 
       - name: 验证可执行文件
         run: >-
-          uv run python -c
+          uv run --no-sync python -c
           "import subprocess; subprocess.run([r'${{ matrix.executable }}', '--version'], check=True)"
 
       - name: 上传待签名构建产物

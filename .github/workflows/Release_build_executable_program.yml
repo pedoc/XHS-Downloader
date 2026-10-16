@@ -53,15 +53,14 @@ jobs:
       - name: 安装依赖项
         run: |
           uv python install 3.12
-          uv sync --frozen --no-dev --no-install-project --python 3.12
-          uv pip install cx_Freeze
+          uv sync --frozen --no-dev --group build --no-install-project --python 3.12
 
       - name: 构建可执行文件
-        run: uv run python setup.py build_exe --build-exe dist/XHS-Downloader
+        run: uv run --no-sync python setup.py build_exe --build-exe dist/XHS-Downloader
 
       - name: 验证可执行文件
         run: >-
-          uv run python -c
+          uv run --no-sync python -c
           "import subprocess; subprocess.run([r'${{ matrix.executable }}', '--version'], check=True)"
 
       - name: 上传待签名构建产物
@@ -88,17 +87,17 @@ jobs:
       - name: 创建签名版本压缩包
         if: matrix.sign && env.SIGNPATH_AVAILABLE == 'true'
         run: |
-          uv run python -c "import shutil; shutil.make_archive('XHS-Downloader_V${{ github.event.release.tag_name }}_${{ matrix.artifact }}', 'zip', 'signed')"
+          uv run --no-sync python -c "import shutil; shutil.make_archive('XHS-Downloader_V${{ github.event.release.tag_name }}_${{ matrix.artifact }}', 'zip', 'signed')"
 
       - name: 创建未签名 Windows 压缩包
         if: matrix.sign && env.SIGNPATH_AVAILABLE != 'true'
         run: |
-          uv run python -c "import shutil; shutil.make_archive('XHS-Downloader_V${{ github.event.release.tag_name }}_${{ matrix.artifact }}', 'zip', 'dist/XHS-Downloader')"
+          uv run --no-sync python -c "import shutil; shutil.make_archive('XHS-Downloader_V${{ github.event.release.tag_name }}_${{ matrix.artifact }}', 'zip', 'dist/XHS-Downloader')"
 
       - name: 创建 macOS 压缩包
         if: ${{ !matrix.sign }}
         run: |
-          uv run python -c "import shutil; shutil.make_archive('XHS-Downloader_V${{ github.event.release.tag_name }}_${{ matrix.artifact }}', 'zip', 'dist/XHS-Downloader')"
+          uv run --no-sync python -c "import shutil; shutil.make_archive('XHS-Downloader_V${{ github.event.release.tag_name }}_${{ matrix.artifact }}', 'zip', 'dist/XHS-Downloader')"
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v7
