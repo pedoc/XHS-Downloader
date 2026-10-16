@@ -92,6 +92,12 @@ class FakeSession:
         self.stream = Mock(side_effect=deny_network)
         self.close = AsyncMock()
 
+    async def __aenter__(self) -> "FakeSession":
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        await self.close()
+
 
 @pytest.fixture
 def manager_factory(
@@ -126,3 +132,36 @@ def manager_factory(
         return source_modules.manager.Manager(**(parameters | overrides))
 
     return create_manager
+
+
+@pytest.fixture
+def html_context(
+    manager_factory: Callable[..., Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> SimpleNamespace:
+    module = import_module("source.application.request")
+    manager = manager_factory(cookie="web_session=offline-session")
+    response = SimpleNamespace(
+        text="offline note html", url="https://www.xiaohongshu.com/explore/offline-note",
+        raise_for_status=Mock(),
+    )
+    manager.request_client.get = AsyncMock(return_value=response)
+    manager.public_client.get = AsyncMock(return_value=response)
+    sync_get = Mock(return_value=response)
+    monkeypatch.setattr(module, "get", sync_get, raising=False)
+    monkeypatch.setattr(module, "sleep_time", AsyncMock())
+
+    def create_client(**options: Any) -> FakeSession:
+        client = FakeSession(**options)
+        client.get = AsyncMock(return_value=response)
+        cookie_factory.instances = (*cookie_factory.instances, client)
+        return client
+
+    cookie_factory = Mock(side_effect=create_client)
+    cookie_factory.instances = ()
+    monkeypatch.setattr(module, "AsyncSession", cookie_factory, raising=False)
+    return SimpleNamespace(
+        module=module, html=module.Html(manager), manager=manager, response=response,
+        public_client=manager.public_client, sync_get=sync_get,
+        cookie_factory=cookie_factory,
+    )

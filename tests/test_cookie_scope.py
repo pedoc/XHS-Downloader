@@ -159,33 +159,6 @@ def test_manager_closes_the_public_client_alongside_its_other_clients(
     public_client.close.assert_awaited_once()
 
 
-@pytest.fixture
-def html_context(
-    manager_factory: Callable[..., Any],
-    monkeypatch: pytest.MonkeyPatch,
-) -> SimpleNamespace:
-    request_module = import_module("source.application.request")
-    manager = manager_factory(cookie=LOGIN_COOKIE)
-    response = SimpleNamespace(
-        text="offline note html",
-        url=NOTE_URL,
-        raise_for_status=Mock(),
-    )
-    manager.request_client.get = AsyncMock(return_value=response)
-    public_client = SimpleNamespace(get=AsyncMock(return_value=response))
-    monkeypatch.setattr(manager, "public_client", public_client, raising=False)
-    sync_get = Mock(return_value=response)
-    monkeypatch.setattr(request_module, "get", sync_get, raising=False)
-    monkeypatch.setattr(request_module, "sleep_time", AsyncMock())
-    return SimpleNamespace(
-        html=request_module.Html(manager),
-        manager=manager,
-        response=response,
-        public_client=public_client,
-        sync_get=sync_get,
-    )
-
-
 @pytest.mark.unit
 def test_normal_note_html_keeps_using_the_authenticated_client(
     html_context: SimpleNamespace,
@@ -214,6 +187,7 @@ def test_explicit_note_cookie_is_scoped_to_its_initial_host_without_changing_def
     call = (
         html_context.sync_get.call_args
         or html_context.manager.request_client.get.await_args
+        or html_context.cookie_factory.call_args
     )
     assert call is not None
     assert_host_only_secure_cookies(

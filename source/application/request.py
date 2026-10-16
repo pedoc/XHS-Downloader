@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlsplit
 
-from curl_cffi.requests import get
+from curl_cffi.requests import AsyncSession
 from curl_cffi.requests.exceptions import RequestException
 
 from ..module import ERROR, logging, retry, sleep_time
@@ -9,7 +9,7 @@ from ..module.cookies import scoped_cookies
 from ..translation import _
 
 if TYPE_CHECKING:
-    from curl_cffi.requests import AsyncSession
+    from curl_cffi.requests import Response
 
     from ..module import Manager
 
@@ -62,7 +62,7 @@ class Html:
         headers = {} if purpose == "update" else self.manager.get_headers(url)
         try:
             if cookie and purpose == "html":
-                response = self.__request_url_with_cookie(
+                response = await self.__request_url_with_cookie(
                     url,
                     headers,
                     cookie,
@@ -93,16 +93,15 @@ class Html:
     def format_url(url: str) -> str:
         return bytes(url, "utf-8").decode("unicode_escape")
 
-    def __request_url_with_cookie(
+    async def __request_url_with_cookie(
         self,
         url: str,
         headers: dict,
         cookie: str,
         proxy: str | None = None,
         timeout: float | None = None,
-    ):
-        return get(
-            url,
+    ) -> "Response":
+        async with AsyncSession(
             headers=headers,
             cookies=scoped_cookies(cookie, host=urlsplit(url).hostname or ""),
             timeout=self.timeout if timeout is None else timeout,
@@ -110,7 +109,9 @@ class Html:
             allow_redirects=True,
             proxy=self.proxy if proxy is None else proxy,
             impersonate=self.impersonate,
-        )
+            discard_cookies=True,
+        ) as client:
+            return await client.get(url)
 
     async def __request_url_get(
         self,

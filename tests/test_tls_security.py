@@ -1,9 +1,7 @@
 import asyncio
 from collections.abc import Callable
-from importlib import import_module
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -11,24 +9,8 @@ NOTE_URL = "https://www.xiaohongshu.com/explore/offline-note"
 
 
 @pytest.fixture
-def request_context(
-    manager_factory: Callable[..., Any],
-    monkeypatch: pytest.MonkeyPatch,
-) -> SimpleNamespace:
-    module = import_module("source.application.request")
-    manager = manager_factory()
-    response = SimpleNamespace(text="offline html", url=NOTE_URL, raise_for_status=Mock())
-    manager.request_client.get = AsyncMock(return_value=response)
-    manager.public_client.get = AsyncMock(return_value=response)
-    sync_get = Mock(return_value=response)
-    monkeypatch.setattr(module, "get", sync_get)
-    monkeypatch.setattr(module, "sleep_time", AsyncMock())
-    return SimpleNamespace(
-        module=module,
-        manager=manager,
-        html=module.Html(manager),
-        sync_get=sync_get,
-    )
+def request_context(html_context: SimpleNamespace) -> SimpleNamespace:
+    return html_context
 
 
 @pytest.mark.unit
@@ -47,8 +29,9 @@ def test_explicit_cookie_request_verifies_tls(request_context: SimpleNamespace) 
         request_context.html.request_url(NOTE_URL, cookie="web_session=offline-only")
     )
 
-    assert result == "offline html"
-    assert request_context.sync_get.call_args.kwargs["verify"] is True
+    assert result == request_context.response.text
+    call = request_context.sync_get.call_args or request_context.cookie_factory.call_args
+    assert call is not None and call.kwargs["verify"] is True
 
 
 @pytest.mark.unit
