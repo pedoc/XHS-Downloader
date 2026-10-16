@@ -19,7 +19,7 @@ class ScriptServer:
     def __init__(
         self,
         core: "XHS",
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=5558,
     ):
         self.core = core

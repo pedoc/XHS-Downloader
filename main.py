@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 from asyncio import run
 from asyncio.exceptions import CancelledError
 from contextlib import suppress
@@ -13,7 +14,7 @@ async def tui():
 
 
 async def api_server(
-    host="0.0.0.0",
+    host="127.0.0.1",
     port=5556,
     log_level="info",
 ):
@@ -27,7 +28,7 @@ async def api_server(
 
 async def mcp_server(
     transport="streamable-http",
-    host="0.0.0.0",
+    host="127.0.0.1",
     port=5556,
     log_level="INFO",
 ):
@@ -40,6 +41,16 @@ async def mcp_server(
         )
 
 
+def server_arguments() -> dict[str, str | int]:
+    parser = ArgumentParser(prog=f"{argv[0]} {argv[1]}")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=5556)
+    arguments = parser.parse_args(argv[2:])
+    if not 1 <= arguments.port <= 65535:
+        parser.error("--port must be between 1 and 65535")
+    return vars(arguments)
+
+
 if __name__ == "__main__":
     with suppress(
         KeyboardInterrupt,
@@ -50,9 +61,9 @@ if __name__ == "__main__":
         elif argv[1].upper() == "TUI":
             run(tui())
         elif argv[1].upper() == "API":
-            run(api_server())
+            run(api_server(**server_arguments()))
         elif argv[1].upper() == "MCP":
-            run(mcp_server())
+            run(mcp_server(**server_arguments()))
             # run(mcp_server("stdio"))
         else:
             cli()

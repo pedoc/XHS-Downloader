@@ -113,9 +113,10 @@
 </ul>
 <li>Create Container</li>
 <ul>
-<li>TUI Mode: <code>docker run --name ContainerName(optional) -p HostPort:5556 -v xhs_downloader_volume:/app/Volume -it &lt;image name&gt;</code></li>
-<li>API Mode: <code>docker run --name ContainerName(optional) -p HostPort:5556 -v xhs_downloader_volume:/app/Volume -it &lt;image name&gt; python main.py api</code></li>
-<li>MCP Mode: <code>docker run --name ContainerName(optional) -p HostPort:5556 -v xhs_downloader_volume:/app/Volume -it &lt;image name&gt; python main.py mcp</code></li>
+<li>TUI Mode: <code>docker run --name ContainerName(optional) -p 127.0.0.1:HostPort:5556 -v xhs_downloader_volume:/app/Volume -it &lt;image name&gt;</code></li>
+<li>API Mode: <code>docker run --name ContainerName(optional) -p 127.0.0.1:HostPort:5556 -v xhs_downloader_volume:/app/Volume -it &lt;image name&gt; python main.py api --host 0.0.0.0</code></li>
+<li>MCP Mode: <code>docker run --name ContainerName(optional) -p 127.0.0.1:HostPort:5556 -v xhs_downloader_volume:/app/Volume -it &lt;image name&gt; python main.py mcp --host 0.0.0.0</code></li>
+<p>Application services listen on <code>127.0.0.1</code> by default. The API/MCP commands above explicitly use <code>--host 0.0.0.0</code> inside the container so port mapping can reach them; the published host port remains local-only. Access is widened only by explicitly selecting a non-loopback listening address or changing the host port binding. Services still have no authentication; do not expose them directly to untrusted networks.</p>
 <br><b>Note:</b> The <code>&lt;image name&gt;</code> here must be consistent with the image name you used in the first step (<code>joeanamier/xhs-downloader</code> or <code>ghcr.io/joeanamier/xhs-downloader</code>)
 </ul>
 <li>Run Container

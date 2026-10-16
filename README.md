@@ -113,9 +113,10 @@
 </ul>
 <li>创建容器</li>
 <ul>
-<li>TUI 模式：<code>docker run --name 容器名称(可选) -p 主机端口号:5556 -v xhs_downloader_volume:/app/Volume -it &lt;镜像名称&gt;</code></li>
-<li>API 模式：<code>docker run --name 容器名称(可选) -p 主机端口号:5556 -v xhs_downloader_volume:/app/Volume -it &lt;镜像名称&gt; python main.py api</code></li>
-<li>MCP 模式：<code>docker run --name 容器名称(可选) -p 主机端口号:5556 -v xhs_downloader_volume:/app/Volume -it &lt;镜像名称&gt; python main.py mcp</code></li>
+<li>TUI 模式：<code>docker run --name 容器名称(可选) -p 127.0.0.1:主机端口号:5556 -v xhs_downloader_volume:/app/Volume -it &lt;镜像名称&gt;</code></li>
+<li>API 模式：<code>docker run --name 容器名称(可选) -p 127.0.0.1:主机端口号:5556 -v xhs_downloader_volume:/app/Volume -it &lt;镜像名称&gt; python main.py api --host 0.0.0.0</code></li>
+<li>MCP 模式：<code>docker run --name 容器名称(可选) -p 127.0.0.1:主机端口号:5556 -v xhs_downloader_volume:/app/Volume -it &lt;镜像名称&gt; python main.py mcp --host 0.0.0.0</code></li>
+<p>应用服务默认仅监听 <code>127.0.0.1</code>；上述 API/MCP 命令显式使用 <code>--host 0.0.0.0</code>，让容器内服务可被端口映射访问，宿主机发布端口仍仅限本机。只有显式选择非回环监听地址或更改宿主机端口绑定才会扩大访问范围；服务仍无鉴权，请勿直接暴露到不可信网络。</p>
 <br><b>注意：</b>此处的 <code>&lt;镜像名称&gt;</code> 需与您在第一步中使用的镜像名称保持一致（<code>joeanamier/xhs-downloader</code> 或 <code>ghcr.io/joeanamier/xhs-downloader</code>）
 </ul>
 <li>运行容器

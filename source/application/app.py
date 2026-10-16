@@ -162,7 +162,7 @@ class XHS:
         # read_cookie: int | str = None,
         script_server: bool = False,
         note_format: str = "",
-        script_host="0.0.0.0",
+        script_host="127.0.0.1",
         script_port=5558,
         **kwargs,
     ):
@@ -782,7 +782,7 @@ class XHS:
 
     async def run_api_server(
         self,
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=5556,
         log_level="info",
     ):
@@ -857,7 +857,7 @@ class XHS:
     async def run_mcp_server(
         self,
         transport="streamable-http",
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=5556,
         log_level="INFO",
     ):
@@ -1040,7 +1040,7 @@ class XHS:
 
     def init_script_server(
         self,
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=5558,
     ):
         if self.manager.script_server:
@@ -1048,7 +1048,7 @@ class XHS:
 
     async def switch_script_server(
         self,
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=5558,
         switch: bool = None,
     ):
@@ -1064,7 +1064,7 @@ class XHS:
 
     def run_script_server(
         self,
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=5558,
     ):
         if not self.script:
@@ -1072,7 +1072,7 @@ class XHS:
 
     async def _run_script_server(
         self,
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=5558,
     ):
         async with ScriptServer(self, host, port):
