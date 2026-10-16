@@ -143,7 +143,9 @@ def html_context(
     manager = manager_factory(cookie="web_session=offline-session")
     response = SimpleNamespace(
         text="offline note html", url="https://www.xiaohongshu.com/explore/offline-note",
-        raise_for_status=Mock(),
+        status_code=200, headers=curl_requests.Headers(), raise_for_status=Mock(),
+        atext=AsyncMock(return_value="offline note html"),
+        quit_now=None, astream_task=None, aclose=AsyncMock(),
     )
     manager.request_client.get = AsyncMock(return_value=response)
     manager.public_client.get = AsyncMock(return_value=response)
@@ -153,13 +155,17 @@ def html_context(
 
     def create_client(**options: Any) -> FakeSession:
         client = FakeSession(**options)
-        client.get = AsyncMock(return_value=response)
+        client.get = AsyncMock(return_value=response, side_effect=cookie_factory.get_error)
         cookie_factory.instances = (*cookie_factory.instances, client)
         return client
 
     cookie_factory = Mock(side_effect=create_client)
     cookie_factory.instances = ()
+    cookie_factory.get_error = None
     monkeypatch.setattr(module, "AsyncSession", cookie_factory, raising=False)
+    network = import_module("source.module.network")
+    monkeypatch.setattr(network, "AsyncSession", cookie_factory)
+    monkeypatch.setattr(network, "public_addresses", AsyncMock(return_value=("8.8.8.8",)))
     return SimpleNamespace(
         module=module, html=module.Html(manager), manager=manager, response=response,
         public_client=manager.public_client, sync_get=sync_get,

@@ -50,7 +50,16 @@ def mock_stream(manager: Any) -> None:
 
 class TestPathSecurity:
     @pytest.fixture
-    def core_factory(self, source_modules: SimpleNamespace, manager_factory: Factory) -> Factory:
+    def core_factory(
+        self, source_modules: SimpleNamespace, manager_factory: Factory,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> Factory:
+        def checked(manager: Any, url: str, purpose: str, **options: Any) -> Any:
+            assert purpose == "media"
+            return manager.download_client.stream("GET", url, headers=options.get("headers"))
+
+        monkeypatch.setattr(import_module("source.application.download"), "checked_stream", checked)
+
         def create(**options: Any) -> Any:
             module = source_modules.app
             manager = manager_factory(**options)
@@ -76,7 +85,7 @@ class TestPathSecurity:
             "作品类型": "视频", "发布时间": "2026-10-16 10:20:30",
             "最后更新时间": "2026-10-16 10:20:30", "收藏数量": "1", "评论数量": "2",
             "分享数量": "3", "点赞数量": "4", "作者链接": "https://example.invalid/author",
-            "下载地址": ["https://example.invalid/media"], "动图地址": [None],
+            "下载地址": ["https://sns-video-bd.xhscdn.com/offline-media"], "动图地址": [None],
             "封面地址": None, "时间戳": 1700000000,
         }
 

@@ -166,8 +166,12 @@ def test_normal_note_html_keeps_using_the_authenticated_client(
     result = asyncio.run(html_context.html.request_url(NOTE_URL))
 
     assert result == "offline note html"
-    html_context.manager.request_client.get.assert_awaited_once()
-    html_context.public_client.get.assert_not_awaited()
+    html_context.cookie_factory.assert_called_once()
+    assert_host_only_secure_cookies(
+        html_context.cookie_factory.call_args.kwargs["cookies"], XHS_HOST,
+        {"web_session": "offline-session"},
+    )
+    html_context.manager.request_client.get.assert_not_awaited()
     html_context.sync_get.assert_not_called()
 
 
@@ -218,14 +222,15 @@ def test_public_lookups_ignore_business_cookies_and_use_the_public_client(
     )
 
     assert result == url
-    html_context.public_client.get.assert_awaited_once()
+    html_context.cookie_factory.assert_called_once()
     html_context.manager.request_client.get.assert_not_awaited()
     html_context.sync_get.assert_not_called()
-    args, kwargs = html_context.public_client.get.await_args
-    assert args[0] == url
-    assert not kwargs.get("cookies")
-    assert "purpose" not in kwargs
-    headers = {key.lower(): value for key, value in kwargs.get("headers", {}).items()}
+    client = html_context.cookie_factory.instances[0]
+    client.get.assert_awaited_once()
+    assert client.get.await_args.args[0] == url
+    assert tuple(client.cookies.jar) == ()
+    assert client.options["discard_cookies"] is True
+    headers = {key.lower(): value for key, value in client.headers.items()}
     assert "cookie" not in headers
     assert "authorization" not in headers
     if purpose == "update":
@@ -297,7 +302,7 @@ def test_update_lookup_does_not_retry_or_apply_business_throttling(
     request_module = import_module("source.application.request")
     html_context.html.retry = 5
     if fails:
-        html_context.public_client.get.side_effect = request_module.RequestException(
+        html_context.cookie_factory.get_error = request_module.RequestException(
             "offline timeout"
         )
     throttle = AsyncMock()
@@ -308,5 +313,6 @@ def test_update_lookup_does_not_retry_or_apply_business_throttling(
     )
 
     assert result == ("" if fails else str(html_context.response.url))
-    html_context.public_client.get.assert_awaited_once()
+    html_context.cookie_factory.assert_called_once()
+    html_context.cookie_factory.instances[0].get.assert_awaited_once()
     throttle.assert_not_awaited()

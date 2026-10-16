@@ -1,26 +1,22 @@
+from asyncio import timeout as request_deadline
 from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlsplit
 
-from curl_cffi.requests import AsyncSession
 from curl_cffi.requests.exceptions import RequestException
 
 from ..module import ERROR, logging, retry, sleep_time
 from ..module.cookies import scoped_cookies
+from ..module.network import checked_stream, normalize_url
 from ..translation import _
 
 if TYPE_CHECKING:
-    from curl_cffi.requests import Response
-
     from ..module import Manager
 
 __all__ = ["Html"]
 
 
 class Html:
-    def __init__(
-        self,
-        manager: "Manager",
-    ):
+    def __init__(self, manager: "Manager"):
         self.manager = manager
         self.print = manager.print
         self.retry = manager.retry
@@ -55,33 +51,28 @@ class Html:
         purpose: Literal["html", "short", "update"],
         timeout: float | None = None,
     ) -> str:
-        if purpose not in {"html", "short", "update"}:
-            raise ValueError("Unknown request purpose")
-        if not url.startswith("http"):
-            url = f"https://{url}"
+        url = normalize_url(url, purpose)
         headers = {} if purpose == "update" else self.manager.get_headers(url)
+        cookies = (
+            scoped_cookies(cookie, host=urlsplit(url).hostname or "")
+            if cookie and purpose == "html" else None
+        )
+        received_response = False
         try:
-            if cookie and purpose == "html":
-                response = await self.__request_url_with_cookie(
-                    url,
-                    headers,
-                    cookie,
-                    proxy=proxy,
-                    timeout=timeout,
-                )
-            else:
-                response = await self.__request_url_get(
-                    url,
-                    headers,
-                    client=self.client if purpose == "html" else self.public_client,
-                    proxy=proxy,
-                    timeout=timeout,
-                )
+            async with request_deadline(self.timeout if timeout is None else timeout):
+                async with checked_stream(
+                    self.manager, url, purpose, headers=headers, cookies=cookies,
+                    proxy=proxy, timeout=timeout,
+                ) as response:
+                    received_response = True
+                    response.raise_for_status()
+                    result = await response.atext() if content else str(response.url)
             if purpose != "update":
                 await sleep_time()
-            response.raise_for_status()
-            return response.text if content else str(response.url)
-        except RequestException as error:
+            return result
+        except (RequestException, TimeoutError) as error:
+            if received_response and purpose != "update":
+                await sleep_time()
             logging(
                 self.print,
                 _("网络异常，{0} 请求失败: {1}").format(url, repr(error)),
@@ -92,40 +83,3 @@ class Html:
     @staticmethod
     def format_url(url: str) -> str:
         return bytes(url, "utf-8").decode("unicode_escape")
-
-    async def __request_url_with_cookie(
-        self,
-        url: str,
-        headers: dict,
-        cookie: str,
-        proxy: str | None = None,
-        timeout: float | None = None,
-    ) -> "Response":
-        async with AsyncSession(
-            headers=headers,
-            cookies=scoped_cookies(cookie, host=urlsplit(url).hostname or ""),
-            timeout=self.timeout if timeout is None else timeout,
-            verify=True,
-            allow_redirects=True,
-            proxy=self.proxy if proxy is None else proxy,
-            impersonate=self.impersonate,
-            discard_cookies=True,
-        ) as client:
-            return await client.get(url)
-
-    async def __request_url_get(
-        self,
-        url: str,
-        headers: dict,
-        proxy: str | None = None,
-        client: "AsyncSession | None" = None,
-        timeout: float | None = None,
-    ):
-        selected_client = self.client if client is None else client
-        options = {} if timeout is None else {"timeout": timeout}
-        return await selected_client.get(
-            url,
-            headers=headers,
-            proxy=self.proxy if proxy is None else proxy,
-            **options,
-        )

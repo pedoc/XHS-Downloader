@@ -63,23 +63,28 @@ def test_request_options_cannot_bypass_fixed_security_settings(
 def test_public_request_still_accepts_an_explicit_timeout(
     request_context: SimpleNamespace,
 ) -> None:
-    asyncio.run(request_context.html.request_url(NOTE_URL, purpose="update", timeout=8))
+    asyncio.run(request_context.html.request_url(
+        "https://github.com/JoeanAmier/XHS-Downloader/releases/latest",
+        purpose="update", timeout=8,
+    ))
 
-    assert request_context.manager.public_client.get.await_args.kwargs["timeout"] == 8
+    assert request_context.cookie_factory.call_args.kwargs["timeout"] == 8
 
 
 @pytest.mark.unit
 def test_certificate_failure_never_uses_an_insecure_fallback(
     request_context: SimpleNamespace,
 ) -> None:
-    request_context.manager.request_client.get.side_effect = (
+    request_context.cookie_factory.get_error = (
         request_context.module.RequestException("offline certificate verification failed")
     )
 
     result = asyncio.run(request_context.html.request_url(NOTE_URL))
 
     assert result == ""
-    request_context.manager.request_client.get.assert_awaited_once()
-    assert request_context.manager.request_client.get.await_args.args[0] == NOTE_URL
-    assert request_context.manager.request_client.options.get("verify", True) is True
+    request_context.cookie_factory.assert_called_once()
+    client = request_context.cookie_factory.instances[0]
+    client.get.assert_awaited_once()
+    assert client.get.await_args.args[0] == NOTE_URL
+    assert client.options["verify"] is True
     request_context.sync_get.assert_not_called()

@@ -78,6 +78,7 @@
 <p>If you only need to download notes files, it is recommended to choose <b>Program Run</b>; if you have other needs, it is recommended to choose <b>Source Code Run</b>!</p>
 <p>⚠️ Cookies are optional. If issues occur, please try configuring or updating them and retry!</p>
 <p>Configured cookies are restricted to <code>www.xiaohongshu.com</code> and are not sent to short-link, media, or update services. An explicit API cookie is restricted to the initial note site for that request. Settings remain in a local plaintext file; do not share it publicly.</p>
+<p>Outbound requests are restricted to official note/short-link sites, known media CDNs, and this project's GitHub releases. Legacy HTTP links are upgraded before sending, and every redirect is checked. Environment proxies are not inherited and API calls cannot override the local proxy setting. An explicit proxy is a trusted exit: local IP pinning cannot guarantee its remote DNS or routing.</p>
 <p>⚠️ When Cookie is not set, video works can only be downloaded in low resolution; it is recommended to configure Cookie to obtain higher quality (no need to log in to the account)!</p>
 <h2>🖱 Program Run</h2>
 <p>⭐ Mac OS, Windows 10 and above users can go to <a href="https://github.com/JoeanAmier/XHS-Downloader/releases/latest">Releases</a> or <a href="https://github.com/JoeanAmier/XHS-Downloader/actions">Actions</a> to download the program package, unzip it, open the program folder, and double-click to run <code>main</code> to use.</p>

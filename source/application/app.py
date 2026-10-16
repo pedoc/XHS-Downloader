@@ -16,7 +16,7 @@ from types import SimpleNamespace
 from typing import Annotated, Awaitable, Callable
 from urllib.parse import urlparse
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from fastmcp import FastMCP
 from pydantic import Field
@@ -56,6 +56,8 @@ from ..module import (
     ScriptServer,
     logging,
 )
+from ..module.network import UnsafeURLError, normalize_url
+from ..module.proxy import validate_proxy
 from ..translation import _, switch_language
 from .download import Download
 from .explore import Explore
@@ -413,12 +415,13 @@ class XHS:
         urls = []
         for i in url.split():
             if u := self.SHORT.search(i):
-                i = await self.html.request_url(
-                    u.group(),
-                    False,
-                    purpose="short",
-                    proxy=proxy,
-                )
+                try:
+                    i = await self.html.request_url(
+                        u.group(), False, purpose="short", proxy=proxy,
+                    )
+                except UnsafeURLError as error:
+                    self.logging(_("链接不符合安全策略：{0}").format(error), WARNING)
+                    continue
             if u := self.SHARE_XHS.search(i):
                 urls.append(u.group())
             elif u := self.SHARE_RN.search(i):
@@ -431,7 +434,13 @@ class XHS:
                 urls.append(u.group())
             elif u := self.USER_RN.search(i):
                 urls.append(u.group())
-        return urls
+        safe_urls = []
+        for link in urls:
+            try:
+                safe_urls.append(normalize_url(link, "html"))
+            except UnsafeURLError as error:
+                self.logging(_("链接不符合安全策略：{0}").format(error), WARNING)
+        return safe_urls
 
     def extract_id(self, links: list[str]) -> list[str]:
         ids = []
@@ -451,11 +460,12 @@ class XHS:
         proxy: str | None = None,
     ) -> Namespace | dict:
         self.logging(_("开始处理作品：{0}").format(id_))
-        html = await self.html.request_url(
-            url,
-            cookie=cookie,
-            proxy=proxy,
-        )
+        try:
+            html = await self.html.request_url(url, cookie=cookie, proxy=proxy)
+        except UnsafeURLError as error:
+            self.logging(_("链接不符合安全策略：{0}").format(error), ERROR)
+            count.fail += 1
+            return {"message": str(error), "error": True}
         namespace = self.__generate_data_object(html)
         if not namespace:
             self.logging(_("{0} 获取数据失败").format(id_), ERROR)
@@ -490,6 +500,18 @@ class XHS:
             return {}
         return data
 
+    @staticmethod
+    def __safe_media_urls(data: dict) -> dict:
+        return data | {
+            "下载地址": [normalize_url(url, "media") for url in data["下载地址"]],
+            "动图地址": [
+                normalize_url(url, "media") if url else None for url in data["动图地址"]
+            ],
+            "封面地址": (
+                normalize_url(data["封面地址"], "media") if data.get("封面地址") else None
+            ),
+        }
+
     async def _deal_download_tasks(
         self,
         data: dict,
@@ -512,6 +534,7 @@ class XHS:
                 self.logging(_("未知的作品类型：{0}").format(id_), WARNING)
                 data["下载地址"] = []
                 data["动图地址"] = []
+            data = self.__safe_media_urls(data)
             await self.update_author_nickname(data)
             await self.__download_files(
                 data,
@@ -523,10 +546,10 @@ class XHS:
             )
         except (ValueError, OSError) as error:
             count.fail += 1
-            self.logging(_("作品文件路径处理失败：{0}").format(error), ERROR)
+            self.logging(_("作品处理失败：{0}").format(error), ERROR)
             if progress_callback:
                 progress_callback({"task_id": task_id, "state": "failed"})
-            return {"message": str(error)}
+            return {"message": str(error), "error": True}
         return data
 
     async def __deal_extract(
@@ -836,7 +859,7 @@ class XHS:
                 - **download**: 是否下载作品文件；设置为 true 将会耗费更多时间；可选参数
                 - **index**: 下载指定序号的图片文件，仅对图文作品生效；download 参数设置为 false 时不生效；可选参数
                 - **cookie**: 请求数据时使用的 Cookie；可选参数
-                - **proxy**: 请求数据时使用的代理；可选参数
+                - **proxy**: 可选，仅允许与本机已配置代理一致，不能覆盖本机出站策略
                 - **check_record**: 是否跳过已有下载记录的作品；可选参数
                 """)
             ),
@@ -844,10 +867,19 @@ class XHS:
             response_model=ExtractData,
         )
         async def handle(extract: ExtractParams):
+            if extract.proxy is not None:
+                try:
+                    requested_proxy = validate_proxy(extract.proxy)
+                except ValueError:
+                    raise HTTPException(status_code=400, detail=_("代理地址格式无效")) from None
+                if requested_proxy != self.manager.proxy:
+                    raise HTTPException(
+                        status_code=400, detail=_("API 请求不能覆盖本机配置的代理"),
+                    )
             data = None
             url = await self.extract_links(
                 extract.url,
-                proxy=extract.proxy,
+                proxy=self.manager.proxy,
             )
             if not url:
                 msg = _("提取小红书作品链接失败")
@@ -858,9 +890,9 @@ class XHS:
                     extract.index,
                     check_record=extract.check_record,
                     cookie=extract.cookie,
-                    proxy=extract.proxy,
+                    proxy=self.manager.proxy,
                 ):
-                    msg = _("获取小红书作品数据成功")
+                    msg = _("获取小红书作品数据失败") if data.get("error") else _("获取小红书作品数据成功")
                 else:
                     msg = _("获取小红书作品数据失败")
             return ExtractData(message=msg, params=extract, data=data)
@@ -993,7 +1025,7 @@ class XHS:
                 index,
             )
             match (
-                bool(data),
+                bool(data) and not data.get("error", False),
                 return_data,
             ):
                 case (True, True):
@@ -1045,7 +1077,7 @@ class XHS:
             index,
             check_record=True,
         ):
-            msg = _("获取小红书作品数据成功")
+            msg = _("获取小红书作品数据失败") if data.get("error") else _("获取小红书作品数据成功")
         else:
             msg = _("获取小红书作品数据失败")
         return msg, data

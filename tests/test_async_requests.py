@@ -48,7 +48,9 @@ def test_explicit_cookie_request_uses_and_closes_an_isolated_async_client(
     assert client.cookies.get("web_session") == "offline-private"
     assert client.options["verify"] is True
     assert client.options["timeout"] == 8
-    client.get.assert_awaited_once_with(NOTE_URL)
+    client.get.assert_awaited_once()
+    assert client.get.await_args.args[0] == NOTE_URL
+    assert client.get.await_args.kwargs["stream"] is True
     client.close.assert_awaited_once()
     assert html_context.manager.request_client.cookies.get("web_session") == "offline-session"
 

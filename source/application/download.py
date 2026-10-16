@@ -18,6 +18,7 @@ from ..module import (
     # sleep_time,
 )
 from ..module import retry as re_download
+from ..module.network import checked_stream, normalize_url
 from ..translation import _
 
 if TYPE_CHECKING:
@@ -103,6 +104,7 @@ class Download:
             )
         else:
             raise ValueError
+        tasks = [(normalize_url(url, "media"), name, format_) for url, name, format_ in tasks]
         tasks = [
             self.__download(
                 url,
@@ -256,10 +258,12 @@ class Download:
                     )
 
             try:
-                async with self.client.stream(
-                    "GET",
+                async with checked_stream(
+                    self.manager,
                     url,
+                    "media",
                     headers=headers,
+                    proxy=self.manager.proxy if self.manager.proxy_download else "",
                 ) as response:
                     # await sleep_time()
                     if response.status_code == 416:
@@ -348,16 +352,15 @@ class Download:
         headers: dict[str, str],
         suffix: str,
     ) -> tuple[int, str]:
-        """未使用"""
-        response = await self.client.head(
-            url,
-            headers=headers,
-        )
-        # await sleep_time()
-        response.raise_for_status()
-        suffix = self.__extract_type(response.headers.get("Content-Type")) or suffix
-        length = response.headers.get("Content-Length", 0)
-        return int(length), suffix
+        """仅读取已验证媒体目标的响应头，不消费响应体。"""
+        async with checked_stream(
+            self.manager, url, "media", headers=headers,
+            proxy=self.manager.proxy if self.manager.proxy_download else "",
+        ) as response:
+            response.raise_for_status()
+            suffix = self.__extract_type(response.headers.get("Content-Type")) or suffix
+            length = response.headers.get("Content-Length", 0)
+            return int(length), suffix
 
     def __get_resume_byte_position(self, file: Path) -> int:
         file = self.manager.temp_path(file)
