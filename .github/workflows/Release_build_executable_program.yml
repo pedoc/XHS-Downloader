@@ -86,18 +86,30 @@ jobs:
 
       - name: 创建签名版本压缩包
         if: matrix.sign && env.SIGNPATH_AVAILABLE == 'true'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          ARTIFACT_NAME: ${{ matrix.artifact }}
         run: |
-          uv run --no-sync python -c "import shutil; shutil.make_archive('XHS-Downloader_V${{ github.event.release.tag_name }}_${{ matrix.artifact }}', 'zip', 'signed')"
+          uv run --no-sync python -I .github/scripts/release_tools.py archive "$RELEASE_TAG" "$ARTIFACT_NAME" signed
 
       - name: 创建未签名 Windows 压缩包
         if: matrix.sign && env.SIGNPATH_AVAILABLE != 'true'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          ARTIFACT_NAME: ${{ matrix.artifact }}
         run: |
-          uv run --no-sync python -c "import shutil; shutil.make_archive('XHS-Downloader_V${{ github.event.release.tag_name }}_${{ matrix.artifact }}', 'zip', 'dist/XHS-Downloader')"
+          uv run --no-sync python -I .github/scripts/release_tools.py archive "$RELEASE_TAG" "$ARTIFACT_NAME" dist/XHS-Downloader
 
       - name: 创建 macOS 压缩包
         if: ${{ !matrix.sign }}
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          ARTIFACT_NAME: ${{ matrix.artifact }}
         run: |
-          uv run --no-sync python -c "import shutil; shutil.make_archive('XHS-Downloader_V${{ github.event.release.tag_name }}_${{ matrix.artifact }}', 'zip', 'dist/XHS-Downloader')"
+          uv run --no-sync python -I .github/scripts/release_tools.py archive "$RELEASE_TAG" "$ARTIFACT_NAME" dist/XHS-Downloader
 
       - name: 上传构建产物
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
