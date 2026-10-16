@@ -35,6 +35,7 @@ class Update(ModalScreen):
             url = await self.xhs.html.request_url(
                 RELEASES,
                 False,
+                purpose="update",
                 timeout=5,
             )
             version = url.split("/")[-1]

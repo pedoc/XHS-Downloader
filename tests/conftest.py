@@ -69,7 +69,7 @@ def source_modules(
         cleaner=import_module("source.expansion.cleaner"),
     )
     for name, module in tuple(sys.modules.items()):
-        if name.startswith("source.") and getattr(module, "VOLUME", None) == REAL_VOLUME:
+        if name.startswith("source.") and hasattr(module, "VOLUME"):
             monkeypatch.setattr(module, "VOLUME", tmp_volume)
     settings_class = modules.settings.Settings
     monkeypatch.setattr(settings_class, "default", deepcopy(settings_class.default))

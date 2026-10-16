@@ -1,4 +1,3 @@
-from http.cookies import SimpleCookie
 from os import utime
 from pathlib import Path
 from re import compile, sub
@@ -11,6 +10,7 @@ from curl_cffi.requests.exceptions import RequestException, Timeout
 from source.expansion import remove_empty_directories
 
 from ..translation import _
+from .cookies import cookie_values, scoped_cookies
 from .static import HEADERS, IMPERSONATE, WARNING
 from .tools import get_site_referer, logging
 
@@ -97,12 +97,20 @@ class Manager:
         self.print_proxy_tip()
         self.request_client = AsyncSession(
             headers=self.blank_headers,
-            cookies=self.cookie_str_to_dict(cookie),
+            cookies=scoped_cookies(cookie),
             timeout=self.timeout,
             verify=False,
             allow_redirects=True,
             proxy=self.proxy,
             impersonate=self.impersonate,
+        )
+        self.public_client = AsyncSession(
+            headers=self.blank_headers,
+            timeout=self.timeout,
+            allow_redirects=True,
+            proxy=self.proxy,
+            impersonate=self.impersonate,
+            discard_cookies=True,
         )
         self.download_client = AsyncSession(
             timeout=self.timeout,
@@ -110,6 +118,7 @@ class Manager:
             allow_redirects=True,
             proxy=self.proxy if self.proxy_download else None,
             impersonate=self.impersonate,
+            discard_cookies=True,
         )
         self.image_download = self.check_bool(image_download, True)
         self.video_download = self.check_bool(video_download, True)
@@ -204,6 +213,7 @@ class Manager:
 
     async def close(self):
         await self.request_client.close()
+        await self.public_client.close()
         await self.download_client.close()
         # self.__clean()
         remove_empty_directories(self.root)
@@ -321,6 +331,4 @@ class Manager:
 
     @staticmethod
     def cookie_str_to_dict(cookie_str: str) -> dict:
-        cookie = SimpleCookie()
-        cookie.load(cookie_str)
-        return {key: morsel.value for key, morsel in cookie.items()}
+        return cookie_values(cookie_str)

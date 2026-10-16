@@ -77,6 +77,7 @@
 <h1>🥣 使用方法</h1>
 <p>如果仅需下载作品文件，建议选择 <b>程序运行</b> 或 <b>Docker 运行</b>；如果有其他需求，建议选择 <b>源码运行</b>！</p>
 <p>⚠️ Cookie 配置为非强制项；如遇功能异常，建议配置或更新 Cookie 后再次尝试！</p>
+<p>配置的 Cookie 仅用于 <code>www.xiaohongshu.com</code>，不会发送给短链、媒体或更新服务；API 显式传入的 Cookie 仅用于该次请求的初始作品站点。配置仍保存在本机明文文件中，请勿公开分享。</p>
 <p>⚠️ 未设置 Cookie 时，视频作品只能下载低分辨率文件；建议配置 Cookie 以获取更高画质（无需登录账号）！</p>
 <h2>🖱 程序运行</h2>
 <p>⭐ Mac OS、Windows 10 及以上用户可前往 <a href="https://github.com/JoeanAmier/XHS-Downloader/releases/latest">Releases</a> 或者 <a href="https://github.com/JoeanAmier/XHS-Downloader/actions">Actions</a> 下载程序压缩包，解压后打开程序文件夹，双击运行 <code>main</code> 即可使用。</p>

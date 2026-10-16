@@ -696,13 +696,13 @@ class GuiBackend:
         if not self.xhs:
             return {"status": "error", "message": _("下载器尚未初始化")}
         try:
-            async with self.xhs.html.client.stream(
-                "GET",
+            release_url = await self.xhs.html.request_url(
                 RELEASES,
+                False,
+                purpose="update",
                 timeout=8,
-            ) as response:
-                response.raise_for_status()
-                return build_update_result(str(response.url))
+            )
+            return build_update_result(release_url)
         except Exception as error:
             self.add_log(f"{_('检测新版本失败')}：{error}", "error")
             return {

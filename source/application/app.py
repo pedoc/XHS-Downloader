@@ -413,6 +413,7 @@ class XHS:
                 i = await self.html.request_url(
                     u.group(),
                     False,
+                    purpose="short",
                     proxy=proxy,
                 )
             if u := self.SHARE_XHS.search(i):
