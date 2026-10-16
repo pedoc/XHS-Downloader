@@ -2288,7 +2288,7 @@ dialog.disclaimer-modal .modal-footer button:focus-visible {
     --amber: #a9782d;
     --amber-soft: #fff7e9;
     --shadow: 0 8px 24px rgba(62, 43, 48, .06);
-    --font-ui: "Noto Sans SC", sans-serif;
+    --font-ui: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
 
 html,
