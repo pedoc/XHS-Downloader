@@ -1,6 +1,6 @@
 import socket
 import sys
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from copy import deepcopy
 from importlib import import_module
 from pathlib import Path
@@ -141,10 +141,15 @@ def html_context(
 ) -> SimpleNamespace:
     module = import_module("source.application.request")
     manager = manager_factory(cookie="web_session=offline-session")
+
+    async def content(size: int | None = None) -> AsyncIterator[bytes]:
+        yield response.text.encode(response.encoding)
+
     response = SimpleNamespace(
         text="offline note html", url="https://www.xiaohongshu.com/explore/offline-note",
         status_code=200, headers=curl_requests.Headers(), raise_for_status=Mock(),
         atext=AsyncMock(return_value="offline note html"),
+        aiter_content=content, encoding="utf-8",
         quit_now=None, astream_task=None, aclose=AsyncMock(),
     )
     manager.request_client.get = AsyncMock(return_value=response)

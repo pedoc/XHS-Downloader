@@ -56,6 +56,7 @@ from ..module import (
     ScriptServer,
     logging,
 )
+from ..module.limits import MAX_DOWNLOAD_TIME, MAX_FILE_SIZE, MIN_FREE_SPACE
 from ..module.network import UnsafeURLError, normalize_url
 from ..module.proxy import validate_proxy
 from ..translation import _, switch_language
@@ -167,6 +168,9 @@ class XHS:
         note_format: str = "",
         script_host="127.0.0.1",
         script_port=5558,
+        max_file_size: int = MAX_FILE_SIZE,
+        max_download_time: int = MAX_DOWNLOAD_TIME,
+        min_free_space: int = MIN_FREE_SPACE,
         **kwargs,
     ):
         switch_language(language)
@@ -199,6 +203,9 @@ class XHS:
             note_format,
             self.CLEANER,
             self.print,
+            max_file_size=max_file_size,
+            max_download_time=max_download_time,
+            min_free_space=min_free_space,
         )
         self.mapping_data = mapping_data or {}
         self.map_recorder = MapRecorder(

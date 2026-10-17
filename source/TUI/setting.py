@@ -259,7 +259,7 @@ class Setting(Screen):
     @on(Button.Pressed, "#save")
     def save_settings(self):
         self.dismiss(
-            {
+            self.data | {
                 "mapping_data": self.data.get("mapping_data", {}),
                 "work_path": self.query_one("#work_path").value,
                 "folder_name": self.query_one("#folder_name").value,

@@ -383,6 +383,8 @@ async def example():
 <summary>配置文件参数说明，适合需要直接修改程序配置参数的用户（点击展开）</summary>
 <p>项目根目录下的 <code>./Volume/settings.json</code> 文件，首次运行自动生成，可以自定义程序运行参数；如果设置了无效的参数值，程序将会使用参数默认值！</p>
 <p>如果您在程序界面修改配置时无法正常交互，可以直接编辑配置文件；如果您的计算机没有合适的程序编辑 JSON 文件，建议使用 <a href="https://www.toolhelper.cn/JSON/JSONFormat">在线工具</a> 编辑配置文件内容，修改后需要重启软件才能生效。</p>
+<p>媒体默认限制为单文件 2 GiB、总下载 30 分钟、磁盘保留 256 MiB；下载更大的合法文件可在 JSON 中提高对应上限。媒体使用独立总时限，不套用 HTML 的 <code>timeout</code>。写缓冲固定为 4 MiB，HTML 等元数据响应解压后的体积固定上限为 16 MiB。</p>
+<p>资源限制失败不会自动反复重试或记录下载成功，并尝试删除对应临时缓存；若清理失败，日志会明确给出保留位置，恢复存储条件后可续传或手动处理。普通网络失败仍保留可续传缓存；跨卷复制失败会保留完整源缓存，目标通过临时文件完成后原子发布，不把复制半成品当成成品。已有正常成品不会因限额失败被删除。磁盘检查不是空间预留锁，异步时限也不能强制中断阻塞的操作系统调用；原生传输队列不属于硬内存沙箱。同一进程内相同规范化临时缓存路径的传输会互斥（包括不同线程/事件循环），等待缓存或并发名额不占总下载时限；这不是跨进程文件锁。</p>
 <table>
 <thead>
 <tr>
@@ -452,6 +454,24 @@ async def example():
 <td align="center">int</td>
 <td align="center">下载文件时，每次从服务器获取的数据块大小，单位：字节</td>
 <td align="center">2097152(2 MB)</td>
+</tr>
+<tr>
+<td align="center">max_file_size</td>
+<td align="center">int</td>
+<td align="center">单个媒体文件大小上限，包含续传缓存，单位：字节；须为正整数</td>
+<td align="center">2147483648(2 GiB)</td>
+</tr>
+<tr>
+<td align="center">max_download_time</td>
+<td align="center">int</td>
+<td align="center">取得下载并发名额后的单文件总时限，覆盖 DNS、跳转、重试、接收及写入，单位：秒；有效范围为 1 至 2147483 的整数，超出范围使用默认值 1800</td>
+<td align="center">1800(30 分钟)</td>
+</tr>
+<tr>
+<td align="center">min_free_space</td>
+<td align="center">int</td>
+<td align="center">临时文件与下载目录所在磁盘的保留空闲空间，单位：字节；须为正整数</td>
+<td align="center">268435456(256 MiB)</td>
 </tr>
 <tr>
 <td align="center">max_retry</td>

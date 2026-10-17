@@ -1,9 +1,13 @@
-from contextlib import suppress
+from asyncio import CancelledError
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, suppress
 from os import utime
 from pathlib import Path
 from re import compile, sub
-from shutil import move, rmtree
-from typing import TYPE_CHECKING, get_args
+from shutil import copyfileobj, copystat, move, rmtree
+from tempfile import NamedTemporaryFile
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, BinaryIO, get_args
 
 from curl_cffi.requests import AsyncSession, BrowserTypeLiteral
 
@@ -11,8 +15,13 @@ from ..expansion.paths import contained_path, validate_component
 
 from ..translation import _
 from .cookies import cookie_values, scoped_cookies
+from .limits import (
+    MAX_DOWNLOAD_TIME, MAX_FILE_SIZE, MAX_NATIVE_TIMEOUT_SECONDS, MIN_FREE_SPACE,
+    WRITE_BUFFER_SIZE,
+    check_disk_space, positive_limit,
+)
 from .proxy import validate_proxy
-from .static import HEADERS, IMPERSONATE, ROOT, WARNING
+from .static import ERROR, HEADERS, IMPERSONATE, ROOT, WARNING
 from .tools import get_site_referer, logging
 
 if TYPE_CHECKING:
@@ -74,6 +83,10 @@ class Manager:
         note_format: str,
         cleaner: "Cleaner",
         print_object,
+        *,
+        max_file_size: int = MAX_FILE_SIZE,
+        max_download_time: int = MAX_DOWNLOAD_TIME,
+        min_free_space: int = MIN_FREE_SPACE,
     ):
         self.print = print_object
         self.root = root.resolve()
@@ -92,6 +105,11 @@ class Manager:
         self.folder_mode = self.check_bool(folder_mode, False)
         self.download_record = self.check_bool(download_record, True)
         self.timeout = self.__check_integer(timeout, 10, 1)
+        self.max_file_size = positive_limit(max_file_size, MAX_FILE_SIZE)
+        self.max_download_time = positive_limit(
+            max_download_time, MAX_DOWNLOAD_TIME, MAX_NATIVE_TIMEOUT_SECONDS,
+        )
+        self.min_free_space = positive_limit(min_free_space, MIN_FREE_SPACE)
         self.proxy_tip = None
         self.proxy_download = self.check_bool(proxy_download, False)
         self.proxy = self.__check_proxy(proxy)
@@ -192,14 +210,80 @@ class Manager:
         path: Path,
         mtime: int | None = None,
         rewrite: bool = False,
+        *,
+        check_deadline: Callable[[], None] | None = None,
     ) -> None:
+        check = check_deadline or (lambda: None)
         temp = self.temp_path(temp)
         path = self.download_path(path)
         if path.is_dir():
             raise ValueError(f"Media destination is a directory: {path}")
-        move(temp, path)
+        if temp.stat().st_dev == path.parent.stat().st_dev:
+            check()
+            temp.replace(path)
+        else:
+            self.__copy_media(temp, path, check)
         if rewrite and mtime:
             self.update_mtime(path, mtime)
+
+    def __copy_media(self, temp: Path, path: Path, check: Callable[[], None]) -> None:
+        with self.__media_output(temp, path, check) as output:
+            with self.temp_path(temp).open("rb") as source:
+                def read(size: int = -1) -> bytes:
+                    check()
+                    return source.read(size)
+
+                def write(chunk: bytes) -> int:
+                    check_disk_space(self.download_path(path).parent, self.min_free_space, len(chunk))
+                    check()
+                    return output.write(chunk)
+
+                copyfileobj(
+                    SimpleNamespace(read=read), SimpleNamespace(write=write), WRITE_BUFFER_SIZE,
+                )
+        self.temp_path(temp).unlink()
+
+    @contextmanager
+    def __media_output(
+        self, temp: Path, path: Path, check: Callable[[], None],
+    ) -> Iterator[BinaryIO]:
+        staging = None
+        primary: BaseException | None = None
+        try:
+            with NamedTemporaryFile(
+                dir=path.parent, prefix=".xhs-", suffix=".part", delete=False,
+            ) as output:
+                staging = self.download_path(Path(output.name))
+                try:
+                    yield output
+                except BaseException as error:
+                    primary = error
+                    raise
+            copystat(self.temp_path(temp), self.download_path(staging))
+            staged, target = self.download_path(staging), self.download_path(path)
+            check()
+            staged.replace(target)
+        except BaseException as error:
+            if primary is not None and error is not primary and not isinstance(error, CancelledError):
+                self.__log_staging_error(staging, error)
+                raise primary from error
+            primary = error
+            raise
+        finally:
+            if staging is not None:
+                try:
+                    self.download_path(staging).unlink(missing_ok=True)
+                except (OSError, ValueError) as error:
+                    if primary is None:
+                        raise
+                    self.__log_staging_error(staging, error)
+
+    def __log_staging_error(self, path: Path, error: BaseException) -> None:
+        logging(
+            self.print,
+            _("临时提交文件 {0} 清理异常，未记录下载成功；请检查该位置：{1}").format(path, error),
+            ERROR,
+        )
 
     def update_mtime(self, file: Path, mtime: int) -> None:
         utime(self.download_path(file), (mtime, mtime))

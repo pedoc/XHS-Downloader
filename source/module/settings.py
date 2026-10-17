@@ -4,6 +4,7 @@ from platform import system
 from shutil import move
 
 from ..expansion.paths import contained_path
+from .limits import MAX_DOWNLOAD_TIME, MAX_FILE_SIZE, MIN_FREE_SPACE
 from .static import IMPERSONATE, ROOT, VOLUME
 
 __all__ = ["Settings"]
@@ -22,6 +23,9 @@ class Settings:
         "proxy_download": False,  # 下载文件时使用网络代理
         "timeout": 10,  # 超时时间(秒)
         "chunk": 1024 * 1024 * 2,  # 下载块大小(字节)
+        "max_file_size": MAX_FILE_SIZE,  # 单个媒体文件上限(字节，含续传缓存)
+        "max_download_time": MAX_DOWNLOAD_TIME,  # 单个媒体下载总时限(秒)
+        "min_free_space": MIN_FREE_SPACE,  # 下载时磁盘保留空间(字节)
         "max_retry": 5,  # 最大重试次数
         "record_data": False,  # 是否记录作品数据
         "image_format": "JPEG",  # 图文作品格式

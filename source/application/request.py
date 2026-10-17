@@ -6,6 +6,9 @@ from curl_cffi.requests.exceptions import RequestException
 
 from ..module import ERROR, logging, retry, sleep_time
 from ..module.cookies import scoped_cookies
+from ..module.limits import (
+    MAX_METADATA_SIZE, TransferLimitError, preserve_transfer_failure, read_text,
+)
 from ..module.network import checked_stream, normalize_url
 from ..translation import _
 
@@ -36,7 +39,11 @@ class Html:
         timeout: float | None = None,
     ) -> str:
         request = self.__request_url if purpose == "update" else self.__retry_request_url
-        return await request(url, content, cookie, proxy, purpose, timeout=timeout)
+        try:
+            return await request(url, content, cookie, proxy, purpose, timeout=timeout)
+        except (TransferLimitError, TimeoutError) as error:
+            logging(self.print, _("响应资源限制，{0} 请求失败: {1}").format(url, error), ERROR)
+            return ""
 
     @retry
     async def __retry_request_url(self, *args: Any, **kwargs: Any) -> str:
@@ -60,17 +67,20 @@ class Html:
         received_response = False
         try:
             async with request_deadline(self.timeout if timeout is None else timeout):
-                async with checked_stream(
+                async with preserve_transfer_failure(checked_stream(
                     self.manager, url, purpose, headers=headers, cookies=cookies,
                     proxy=proxy, timeout=timeout,
-                ) as response:
+                )) as response:
                     received_response = True
                     response.raise_for_status()
-                    result = await response.atext() if content else str(response.url)
+                    result = (
+                        await read_text(response, MAX_METADATA_SIZE)
+                        if content and purpose != "update" else str(response.url)
+                    )
             if purpose != "update":
                 await sleep_time()
             return result
-        except (RequestException, TimeoutError) as error:
+        except RequestException as error:
             if received_response and purpose != "update":
                 await sleep_time()
             logging(

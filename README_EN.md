@@ -386,6 +386,8 @@ async def example():
 <summary>Configuration file parameters, suitable for users who need to directly modify program configuration parameters (click to expand)</summary>
 <p>The <code>./Volume/settings.json</code> file in the project's root directory is automatically generated on the first run. You can use it to customize the program's operating parameters. If an invalid parameter value is set, the program will revert to its default value.</p>
 <p>If you are unable to modify settings through the program's interface, you can edit this configuration file directly. If your computer lacks a suitable program for editing JSON files, we recommend using an <a href="https://www.toolhelper.cn/JSON/JSONFormat">online tool</a>. Remember to restart the software after making changes for them to take effect.</p>
+<p>Media defaults are 2 GiB per file, 30 minutes total per download, and a 256 MiB disk reserve. Raise the relevant limits in JSON for larger legitimate files. Media uses its own total budget, not the HTML <code>timeout</code>. The write buffer is fixed at 4 MiB; HTML and other metadata bodies are limited to 16 MiB after transport decompression.</p>
+<p>Resource-policy failures are not repeatedly retried or recorded as successful downloads, and their temporary cache is removed when possible. If cleanup fails, the log identifies the retained cache for resumption after storage recovery or manual handling. Ordinary network failures still retain resumable cache. A failed cross-volume copy retains the complete source cache; the destination is staged and published atomically rather than exposing a partial final file. Existing finished files are not deleted by these limits. Disk checks do not reserve space, asynchronous deadlines cannot forcibly interrupt blocked OS calls, and native transport queues are not a hard memory sandbox. Transfers sharing the same canonical temporary-cache path are serialized within a process, including across threads and event loops; waiting for cache ownership or a download slot does not spend the total budget. This is not a cross-process file lock.</p>
 <table>
 <thead>
 <tr>
@@ -455,6 +457,24 @@ async def example():
 <td align="center">int</td>
 <td align="center">Size of data chunk to fetch from the server each time when downloading files, in bytes</td>
 <td align="center">2097152(2 MB)</td>
+</tr>
+<tr>
+<td align="center">max_file_size</td>
+<td align="center">int</td>
+<td align="center">Per-media-file size limit including resumed bytes, in bytes; must be a positive integer</td>
+<td align="center">2147483648(2 GiB)</td>
+</tr>
+<tr>
+<td align="center">max_download_time</td>
+<td align="center">int</td>
+<td align="center">Total per-file budget after acquiring a download slot, covering DNS, redirects, retries, receiving and writing, in seconds; must be an integer from 1 to 2147483; out-of-range values fall back to 1800</td>
+<td align="center">1800(30 minutes)</td>
+</tr>
+<tr>
+<td align="center">min_free_space</td>
+<td align="center">int</td>
+<td align="center">Free-space reserve on the temporary-file and download-directory disks, in bytes; must be a positive integer</td>
+<td align="center">268435456(256 MiB)</td>
 </tr>
 <tr>
 <td align="center">max_retry</td>
