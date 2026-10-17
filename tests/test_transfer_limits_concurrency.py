@@ -1,5 +1,4 @@
 import asyncio
-import os
 import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -338,7 +337,7 @@ def test_same_cache_is_owned_across_threads_with_different_event_loops(
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("alias", ["parent", "case"])
+@pytest.mark.parametrize("alias", ["parent", "case", "unicode"])
 def test_cache_owner_normalizes_aliases_and_recovers_after_waiter_cancellation(
     tmp_path: Path, alias: str,
 ) -> None:
@@ -346,9 +345,10 @@ def test_cache_owner_normalizes_aliases_and_recovers_after_waiter_cancellation(
     path = tmp_path / "cache" / "offline.mp4"
     path.parent.mkdir()
     if alias == "case":
-        if os.name != "nt":
-            pytest.skip("Case-insensitive cache aliases are Windows-specific")
         other = Path(str(path).swapcase())
+    elif alias == "unicode":
+        path = path.parent / "é.mp4"
+        other = path.parent / "é.mp4"
     else:
         nested = path.parent / "nested"
         nested.mkdir()

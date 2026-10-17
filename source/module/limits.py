@@ -11,6 +11,7 @@ from os.path import normcase
 from pathlib import Path
 from threading import Lock
 from typing import TYPE_CHECKING, Any
+from unicodedata import normalize
 
 if TYPE_CHECKING:
     from curl_cffi.requests import Response
@@ -30,7 +31,8 @@ _CACHE_OWNERS: dict[str, tuple[LockType, int]] = {}
 @asynccontextmanager
 async def cache_owner(temp: Path) -> AsyncIterator[None]:
     """Own a canonical cache across Download instances, threads and event loops."""
-    key = normcase(str(temp.resolve()))
+    # Case-insensitive and Unicode-normalizing filesystems can alias distinct strings.
+    key = normalize("NFC", normcase(str(temp.resolve())).casefold())
     with _CACHE_OWNER_GUARD:
         lock, users = _CACHE_OWNERS.get(key) or (Lock(), 0)
         _CACHE_OWNERS[key] = (lock, users + 1)
