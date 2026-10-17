@@ -32,10 +32,15 @@ LABEL name="XHS-Downloader" authors="JoeanAmier" repository="https://github.com/
 # 从构建器阶段，将已经安装好的依赖包复制到最终镜像的系统路径中
 COPY --from=builder /install /usr/local
 
-# 复制项目代码和相关文件
-COPY locale /app/locale
+# 复制项目代码和运行所需资源
+COPY locale/en_US/LC_MESSAGES/xhs.mo /app/locale/en_US/LC_MESSAGES/xhs.mo
+COPY locale/zh_CN/LC_MESSAGES/xhs.mo /app/locale/zh_CN/LC_MESSAGES/xhs.mo
 COPY source /app/source
-COPY static /app/static
+COPY static/GUI /app/static/GUI
+COPY static/XHS-Downloader.tcss \
+    static/XHS-Downloader.ico \
+    static/XHS-Downloader.icns \
+    static/XHS-Downloader.png /app/static/
 COPY LICENSE /app/LICENSE
 COPY main.py /app/main.py
 
